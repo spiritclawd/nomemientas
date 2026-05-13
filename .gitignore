@@ -1,0 +1,9 @@
+node_modules/
+.next/
+db/
+.env
+.env.local
+*.db
+.DS_Store
+out/
+dist/
