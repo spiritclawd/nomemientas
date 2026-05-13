@@ -2,7 +2,70 @@
 
 import { useState, useEffect } from 'react'
 
+const LIGHT = {
+  page: '#f5f1eb',
+  pageText: '#1a1a2e',
+  subtext: '#5a5a5a',
+  muted: '#8a7e6b',
+  border: '#d4c9b8',
+  borderLight: '#e8e0d4',
+  accent: '#d63031',
+  card: '#ffffff',
+  tabBg: '#e8e0d4',
+  inputBg: '#ffffff',
+  inputText: '#1a1a2e',
+  inputPlaceholder: '#999',
+  badgeGray: '#e0e0e0',
+  badgeGrayText: '#333',
+  green: '#2e7d32',
+  greenBg: '#e8f5e9',
+  orange: '#e65100',
+  orangeBg: '#fff3e0',
+  yellow: '#f57f17',
+  yellowBg: '#fff8e1',
+  red: '#c62828',
+  redBg: '#ffebee',
+  redBorder: '#ffcdd2',
+  errorBg: '#fff5f5',
+  errorBorder: '#ffcdd2',
+  blue: '#1976d2',
+  greenDark: '#2e7d32',
+}
+
+const DARK = {
+  page: '#0f0f11',
+  pageText: '#e8e6e3',
+  subtext: '#a0a0a0',
+  muted: '#707070',
+  border: '#2a2a2e',
+  borderLight: '#1e1e20',
+  accent: '#ff4444',
+  card: '#1a1a1e',
+  tabBg: '#252528',
+  inputBg: '#1a1a1e',
+  inputText: '#e8e6e3',
+  inputPlaceholder: '#555',
+  badgeGray: '#2a2a2e',
+  badgeGrayText: '#ccc',
+  green: '#66bb6a',
+  greenBg: '#1b3320',
+  orange: '#ff9800',
+  orangeBg: '#2a1e0a',
+  yellow: '#fbc02d',
+  yellowBg: '#2a2510',
+  red: '#ef5350',
+  redBg: '#2a1515',
+  redBorder: '#442020',
+  errorBg: '#2a1515',
+  errorBorder: '#442020',
+  blue: '#42a5f5',
+  greenDark: '#66bb6a',
+}
+
+type Colors = typeof LIGHT
+
 export default function Home() {
+  const [dark, setDark] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -10,16 +73,30 @@ export default function Home() {
   const [tab, setTab] = useState<'summary' | 'claims' | 'fallacies' | 'omissions'>('summary')
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
   const [copied, setCopied] = useState(false)
-  const [stats, setStats] = useState({ analysesToday: 0 })
+  const [stats, setStats] = useState<{ analysesToday: number; leaderboard: any[] }>({ analysesToday: 0, leaderboard: [] })
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
 
+  const c = dark ? DARK : LIGHT
   const isUrl = input.trim().match(/^https?:\/\//i)
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('nm-dark') : null
+    if (saved === '1') setDark(true)
+  }, [])
+
+  const toggleDark = () => {
+    setDark(p => {
+      localStorage.setItem('nm-dark', (!p) ? '1' : '0')
+      return !p
+    })
+  }
 
   useEffect(() => {
     fetch('/api/stats')
       .then(r => r.json())
-      .then(d => { if (d.stats) setStats(d.stats) })
+      .then(d => { if (d.stats) setStats(d) })
       .catch(() => {})
-  }, [])
+  }, [result])
 
   async function analyze() {
     if (!input.trim()) return
@@ -32,15 +109,14 @@ export default function Home() {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          isUrl ? { url: input.trim() } : { text: input.trim() }
-        ),
+        body: JSON.stringify(isUrl ? { url: input.trim() } : { text: input.trim() }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Error desconocido'); return }
       setResult(data)
       setTab('summary')
       track(data.id, 'analysis_complete')
+      fetch('/api/stats').then(r => r.json()).then(d => { if (d.stats) setStats(d) }).catch(() => {})
     } catch {
       setError('Error de conexión. Inténtalo de nuevo.')
     } finally {
@@ -63,7 +139,7 @@ export default function Home() {
 
   const shareText = () => {
     const a = result?.analysis
-    return `nomemientas — ${a?.traduccion_llana || a?.resumen}\n\nHonestidad: ${a?.nivel_honestidad}/10\n🗣️ https://nomemientas.aircade.xyz`
+    return `nomemientas — ${a?.traduccion_llana || a?.resumen}\n\nHonestidad: ${a?.nivel_honestidad}/10\nnomemientas.org`
   }
 
   const handleCopy = async () => {
@@ -75,131 +151,192 @@ export default function Home() {
 
   const handleTweet = () => {
     track(result?.id, 'share_twitter')
-    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText())}`
-    window.open(url, '_blank')
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText())}`, '_blank')
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-[300px] bg-gradient-to-b from-red-950/20 to-transparent" />
-      <div className="relative mx-auto max-w-3xl px-5 pb-24">
-        <header className="flex items-center justify-between py-5 border-b border-white/5">
+    <div className="min-h-screen" style={{ background: c.page, color: c.pageText }}>
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 pb-20 transition-colors duration-300">
+
+        {/* Header */}
+        <header className="flex items-center justify-between py-4 sm:py-6 border-b-2" style={{ borderColor: c.border }}>
           <div className="flex items-center gap-2">
-            <span className="text-lg">🗣️</span>
-            <span className="font-bold text-lg tracking-tight">
-              <span className="text-white">no</span><span className="text-red-500">me</span><span className="text-white">mientas</span>
+            <span className="text-2xl">🗣️</span>
+            <span className="font-bold text-xl sm:text-2xl tracking-tight">
+              no<span style={{ color: c.accent }}>me</span>mientas
             </span>
           </div>
-          <span className="text-xs text-neutral-500 hidden sm:block">
-            {stats.analysesToday} análisis hoy
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm hidden sm:block" style={{ color: c.muted }}>
+              {stats.analysesToday} análisis hoy
+            </span>
+            <button
+              onClick={toggleDark}
+              className="p-2 rounded-lg border-2 transition text-lg"
+              style={{ borderColor: c.border, color: c.muted }}
+              title={dark ? 'Modo claro' : 'Modo oscuro'}
+            >
+              {dark ? '☀️' : '🌙'}
+            </button>
+            <button
+              onClick={() => setShowLeaderboard(!showLeaderboard)}
+              className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition"
+              style={{ borderColor: c.border, color: c.muted }}
+            >
+              📊 Ranking
+            </button>
+          </div>
         </header>
 
-        <main className="py-16 sm:py-24 text-center">
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
-            ¿Qué te están diciendo<br /><span className="text-red-500">realmente</span>?
-          </h1>
-          <p className="text-neutral-400 text-base max-w-md mx-auto mb-10">
-            Pega un enlace o un discurso. Quitamos la retórica y te mostramos
-            lo que el político quiere que entiendas — sin filtros.
-          </p>
+        {/* Leaderboard */}
+        {showLeaderboard && (
+          <div className="mt-6 rounded-xl border-2 p-4 sm:p-6" style={{ borderColor: c.border }}>
+            <h2 className="text-lg font-bold mb-4">📊 Ranking de políticos analizados</h2>
+            {stats.leaderboard?.length === 0 ? (
+              <p className="py-8 text-center" style={{ color: c.muted }}>Todavía no hay datos. ¡Empieza a analizar discursos!</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr className="border-b-2" style={{ borderColor: c.border }}>
+                      <th className="py-3 pr-4 text-sm font-semibold" style={{ color: c.muted }}>Político</th>
+                      <th className="py-3 pr-4 text-sm font-semibold text-center" style={{ color: c.muted }}>Veces analizado</th>
+                      <th className="py-3 pr-4 text-sm font-semibold text-center" style={{ color: c.muted }}>Honestidad media</th>
+                      <th className="py-3 text-sm font-semibold" style={{ color: c.muted }}>Última traducción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.leaderboard?.map((p: any, i: number) => (
+                      <tr key={i} className="border-b" style={{ borderColor: c.borderLight }}>
+                        <td className="py-4 pr-4 font-semibold">{p.politician}</td>
+                        <td className="py-4 pr-4 text-center text-lg font-bold">{p.total_checks}</td>
+                        <td className="py-4 pr-4 text-center">
+                          <span className="inline-block px-3 py-1 rounded-full text-lg font-black" style={{
+                            background: p.avg_honesty >= 7 ? c.greenBg : p.avg_honesty >= 4 ? c.yellowBg : c.redBg,
+                            color: p.avg_honesty >= 7 ? c.green : p.avg_honesty >= 4 ? c.yellow : c.red,
+                          }}>{p.avg_honesty}<span className="text-sm" style={{ color: c.muted }}>/10</span></span>
+                        </td>
+                        <td className="py-4 text-sm" style={{ color: c.subtext, maxWidth: '300px' }}>
+                          {p.latest_translation ? `"${p.latest_translation}"` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
-          <div className="max-w-xl mx-auto">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && analyze()}
-                placeholder={isUrl ? 'URL de YouTube, Twitter, artículo...' : 'O escribe el discurso directamente...'}
-                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-red-500/40 focus:ring-2 focus:ring-red-500/10 transition-all duration-200"
-                disabled={loading}
-              />
-              <button
-                onClick={analyze}
-                disabled={loading || !input.trim()}
-                className="bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-semibold text-sm px-6 rounded-2xl transition-all duration-200 min-w-[110px]"
-              >
-                {loading ? (
-                  <span className="flex items-center gap-2 justify-center">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span className="hidden sm:inline">Analizando</span>
-                  </span>
-                ) : 'Analizar'}
-              </button>
-            </div>
-            <p className="text-xs text-neutral-600 mt-3">
-              Compatible con YouTube · Twitter/X · Artículos · Texto libre
+        {/* Main hero */}
+        {!result && !loading && !showLeaderboard && (
+          <div className="py-12 sm:py-20 text-center">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-4 leading-tight">
+              ¿Que dicen cuando hablan?
+            </h1>
+            <p className="text-base sm:text-lg max-w-lg mx-auto mb-10 leading-relaxed" style={{ color: c.subtext }}>
+              Cuando la dialéctica se usa en contra del pueblo, hacen falta traductores. Analiza a tu político favorito y compártelo en redes. ¡Que no les salga gratis!
             </p>
           </div>
-        </main>
+        )}
 
+        {/* Input */}
+        <div className="max-w-2xl mx-auto">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && analyze()}
+              placeholder={isUrl ? 'URL de YouTube, Twitter, artículo...' : 'O escribe el discurso directamente aquí...'}
+              className="flex-1 border-2 rounded-xl px-5 py-4 text-base focus:outline-none transition"
+              style={{
+                borderColor: input ? c.accent + '40' : c.border,
+                color: c.inputText,
+                background: c.inputBg,
+              }}
+              disabled={loading}
+            />
+            <button
+              onClick={analyze}
+              disabled={loading || !input.trim()}
+              className="font-bold text-base px-8 py-4 rounded-xl transition text-white disabled:opacity-50"
+              style={{ background: c.accent }}
+            >
+              {loading ? 'Analizando...' : 'Analizar'}
+            </button>
+          </div>
+          <p className="text-xs mt-3" style={{ color: c.muted }}>
+            Compatible con YouTube • Twitter/X • Artículos de prensa • Texto libre
+          </p>
+        </div>
+
+        {/* Error */}
         {error && (
-          <div className="max-w-xl mx-auto mb-10 -mt-10">
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-sm">
-              {error}
+          <div className="max-w-2xl mx-auto mt-6">
+            <div className="rounded-xl p-4 border-2" style={{ borderColor: c.errorBorder, background: c.errorBg }}>
+              <p className="text-sm" style={{ color: c.red }}>{error}</p>
             </div>
           </div>
         )}
 
+        {/* Loading */}
         {loading && (
-          <div className="max-w-xl mx-auto">
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-10 text-center">
-              <div className="animate-pulse space-y-3 max-w-sm mx-auto">
-                <div className="h-4 bg-white/5 rounded-full w-[80%]" />
-                <div className="h-4 bg-white/5 rounded-full w-[60%]" />
-                <div className="h-4 bg-white/5 rounded-full w-[45%]" />
-              </div>
-              <p className="text-neutral-500 mt-5 text-sm">Extrayendo y analizando…</p>
+          <div className="max-w-2xl mx-auto mt-10">
+            <div className="rounded-xl border-2 p-10 text-center" style={{ borderColor: c.border }}>
+              <p className="text-lg">⏳ Extrayendo y analizando…</p>
+              <p className="text-sm mt-2" style={{ color: c.muted }}>Esto puede tardar unos segundos</p>
             </div>
           </div>
         )}
 
+        {/* Results */}
         {result && !loading && (
-          <div className="max-w-xl mx-auto space-y-5">
-            <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-6">
-              <div className="flex items-center justify-between">
-                <div className="text-left">
-                  <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Nivel de honestidad</p>
+          <div className="max-w-2xl mx-auto mt-8 space-y-5">
+            {/* Score card */}
+            <div className="rounded-xl border-2 p-6" style={{ borderColor: c.border }}>
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                <div className="text-center sm:text-left">
+                  <p className="text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: c.muted }}>Nivel de honestidad</p>
                   <p className="text-5xl font-black tabular-nums" style={{ color:
-                    result.analysis?.nivel_honestidad >= 7 ? '#4ade80' :
-                    result.analysis?.nivel_honestidad >= 4 ? '#facc15' : '#f87171'
+                    result.analysis?.nivel_honestidad >= 7 ? c.green :
+                    result.analysis?.nivel_honestidad >= 4 ? c.yellow : c.red
                   }}>
-                    {result.analysis?.nivel_honestidad ?? '?'}<span className="text-xl text-neutral-500 font-medium">/10</span>
+                    {result.analysis?.nivel_honestidad ?? '?'}<span className="text-xl font-medium" style={{ color: c.muted }}>/10</span>
                   </p>
                 </div>
-                <div className="text-right max-w-[200px]">
-                  <p className="text-xs text-neutral-500 uppercase tracking-widest mb-2">Traducción llana</p>
-                  <p className="text-sm text-neutral-200 leading-relaxed italic">&ldquo;{result.analysis?.traduccion_llana}&rdquo;</p>
+                <div className="sm:text-left flex-1">
+                  <p className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: c.muted }}>Traducción llana</p>
+                  <p className="text-base leading-relaxed font-medium">&ldquo;{result.analysis?.traduccion_llana}&rdquo;</p>
                 </div>
               </div>
             </div>
 
             {/* Feedback */}
             <div className="flex items-center gap-3 justify-center">
-              <span className="text-xs text-neutral-500">¿Te sirve el análisis?</span>
+              <span className="text-sm" style={{ color: c.muted }}>¿Te sirve el análisis?</span>
               {feedback ? (
-                <span className="text-xs text-emerald-400 font-medium">¡Gracias!</span>
+                <span className="text-sm font-semibold" style={{ color: c.green }}>¡Gracias!</span>
               ) : (
                 <>
-                  <button onClick={() => handleFeedback('up')} className="p-2 rounded-lg hover:bg-white/5 transition">👍</button>
-                  <button onClick={() => handleFeedback('down')} className="p-2 rounded-lg hover:bg-white/5 transition">👎</button>
+                  <button onClick={() => handleFeedback('up')} className="px-4 py-2 rounded-lg border-2 transition text-lg" style={{ borderColor: c.border }}>👍 Sí</button>
+                  <button onClick={() => handleFeedback('down')} className="px-4 py-2 rounded-lg border-2 transition text-lg" style={{ borderColor: c.border }}>👎 No</button>
                 </>
               )}
             </div>
 
             {/* Share */}
             <div className="flex items-center gap-2 justify-center">
-              <button onClick={handleCopy} className="text-xs text-neutral-500 hover:text-white transition px-3 py-1.5 rounded-lg bg-white/5">
-                {copied ? '✓ Copiado' : 'Copiar resultado'}
+              <button onClick={handleCopy} className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition" style={{ borderColor: c.border, color: c.muted }}>
+                {copied ? '✓ Copiado' : '📋 Copiar resultado'}
               </button>
-              <button onClick={handleTweet} className="text-xs text-neutral-500 hover:text-white transition px-3 py-1.5 rounded-lg bg-white/5">
+              <button onClick={handleTweet} className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition" style={{ borderColor: c.border, color: c.muted }}>
                 Compartir en X
               </button>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-white/[0.03] rounded-xl p-1">
+            <div className="flex gap-2 rounded-xl p-1" style={{ background: c.tabBg }}>
               {([
                 { id: 'summary' as const, label: 'Resumen' },
                 { id: 'claims' as const, label: 'Afirmaciones' },
@@ -207,83 +344,97 @@ export default function Home() {
                 { id: 'omissions' as const, label: 'Omisos' },
               ]).map((t) => (
                 <button key={t.id} onClick={() => { setTab(t.id); track(result?.id, 'tab_open', { tab: t.id }) }}
-                  className={`flex-1 py-2 px-3 text-xs font-medium rounded-lg transition-all ${tab === t.id ? 'bg-white/10 text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+                  className="flex-1 py-3 px-3 text-sm font-semibold rounded-lg transition-all"
+                  style={{ background: tab === t.id ? c.pageText : 'transparent', color: tab === t.id ? c.page : c.muted }}
                 >{t.label}</button>
               ))}
             </div>
 
+            {/* Summary */}
             {tab === 'summary' && result.analysis?.resumen && (
-              <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
-                <h3 className="text-xs text-neutral-500 uppercase tracking-widest mb-3">Resumen del análisis</h3>
-                <p className="text-neutral-300 leading-relaxed">{result.analysis.resumen}</p>
+              <div className="rounded-xl border-2 p-6" style={{ borderColor: c.border }}>
+                <h3 className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: c.muted }}>Resumen del análisis</h3>
+                <p className="text-base leading-relaxed">{result.analysis.resumen}</p>
               </div>
             )}
 
+            {/* Claims */}
             {tab === 'claims' && result.analysis?.afirmaciones_clave && (
               <div className="space-y-3">
-                {result.analysis.afirmaciones_clave.map((c: any, i: number) => (
-                  <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                      <span className={`mt-0.5 px-2 py-0.5 text-[10px] rounded-md font-semibold uppercase tracking-wider shrink-0 ${
-                        c.tipo === 'dato' ? 'bg-blue-500/20 text-blue-400' :
-                        c.tipo === 'promesa' ? 'bg-emerald-500/20 text-emerald-400' :
-                        c.tipo === 'ataque' ? 'bg-red-500/20 text-red-400' : 'bg-neutral-500/20 text-neutral-400'
-                      }`}>{c.tipo}</span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-white mb-1">&ldquo;{c.texto}&rdquo;</p>
-                        <p className="text-xs text-neutral-400">{c.explicacion}</p>
-                        <p className={`text-[10px] mt-1.5 ${c.verificable ? 'text-emerald-500/70' : 'text-red-500/70'}`}>
-                          {c.verificable ? '✓ Verificable' : '✗ No verificable'}
-                        </p>
+                {result.analysis.afirmaciones_clave.map((claim: any, i: number) => {
+                  const badgeColors: Record<string, { bg: string; text: string }> = {
+                    dato: { bg: c.blue, text: '#fff' },
+                    promesa: { bg: c.green, text: '#fff' },
+                    ataque: { bg: c.red, text: '#fff' },
+                    opinión: { bg: c.badgeGray, text: c.badgeGrayText },
+                  }
+                  const bc = badgeColors[claim.tipo] || badgeColors['opinión']
+                  return (
+                    <div key={i} className="rounded-xl border-2 p-4" style={{ borderColor: c.border }}>
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 px-3 py-1 text-xs rounded-lg font-semibold shrink-0" style={{ background: bc.bg, color: bc.text }}>{claim.tipo}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold mb-1">&ldquo;{claim.texto}&rdquo;</p>
+                          <p className="text-sm" style={{ color: c.subtext }}>{claim.explicacion}</p>
+                          <p className="text-xs mt-1.5" style={{ color: claim.verificable ? c.green : c.red }}>
+                            {claim.verificable ? '✓ Verificable' : '✗ No verificable'}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
+            {/* Fallacies */}
             {tab === 'fallacies' && (
               <div className="space-y-3">
                 {!result.analysis?.falacias?.length ? (
-                  <p className="text-neutral-500 text-sm text-center py-8">No se detectaron falacias evidentes.</p>
+                  <div className="rounded-xl border-2 p-8 text-center" style={{ borderColor: c.border }}>
+                    <p className="text-lg" style={{ color: c.muted }}>No se detectaron falacias evidentes.</p>
+                  </div>
                 ) : result.analysis?.falacias?.map((f: any, i: number) => (
-                  <div key={i} className="bg-red-500/5 border border-red-500/10 rounded-xl p-4">
-                    <p className="text-red-400 text-sm font-semibold">{f.tipo}</p>
-                    <p className="text-neutral-400 text-xs mt-1 italic">&ldquo;{f.ejemplo}&rdquo;</p>
-                    <p className="text-neutral-500 text-xs mt-2">{f.explicacion}</p>
+                  <div key={i} className="rounded-xl border-2 p-4" style={{ borderColor: c.redBorder }}>
+                    <p className="text-sm font-bold" style={{ color: c.red }}>{f.tipo}</p>
+                    <p className="text-sm mt-1 italic" style={{ color: c.subtext }}>&ldquo;{f.ejemplo}&rdquo;</p>
+                    <p className="text-sm mt-2" style={{ color: c.subtext }}>{f.explicacion}</p>
                   </div>
                 ))}
               </div>
             )}
 
+            {/* Omissions */}
             {tab === 'omissions' && (
               <div className="space-y-5">
-                <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
-                  <h4 className="text-xs text-neutral-500 uppercase tracking-widest mb-4">Vago vs concreto</h4>
-                  <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                <div className="rounded-xl border-2 p-6" style={{ borderColor: c.border }}>
+                  <h4 className="text-xs font-semibold mb-4 uppercase tracking-wider" style={{ color: c.muted }}>Vago vs concreto</h4>
+                  <div className="grid sm:grid-cols-2 gap-6 text-sm">
                     <div>
-                      <p className="text-red-400 font-semibold mb-2 text-xs">VAGO</p>
-                      <ul className="space-y-1">
-                        {result.analysis?.vago_vs_concreto?.vago?.map((v: string, i: number) => <li key={i} className="text-neutral-400 text-xs">· {v}</li>)}
+                      <p className="text-sm font-bold mb-3" style={{ color: c.red }}>❌ VAGO</p>
+                      <ul className="space-y-2">
+                        {result.analysis?.vago_vs_concreto?.vago?.map((v: string, i: number) => <li key={i} style={{ color: c.subtext }}>· {v}</li>)}
                       </ul>
                     </div>
                     <div>
-                      <p className="text-emerald-400 font-semibold mb-2 text-xs">CONCRETO</p>
-                      <ul className="space-y-1">
-                        {result.analysis?.vago_vs_concreto?.concreto?.map((v: string, i: number) => <li key={i} className="text-neutral-400 text-xs">· {v}</li>)}
+                      <p className="text-sm font-bold mb-3" style={{ color: c.green }}>✅ CONCRETO</p>
+                      <ul className="space-y-2">
+                        {result.analysis?.vago_vs_concreto?.concreto?.map((v: string, i: number) => <li key={i} style={{ color: c.subtext }}>· {v}</li>)}
                       </ul>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
-                  <h4 className="text-xs text-neutral-500 uppercase tracking-widest mb-2">Lo que se calla</h4>
-                  <p className="text-neutral-300 text-sm leading-relaxed">{result.analysis?.que_se_deja_fuera}</p>
+                <div className="rounded-xl border-2 p-6" style={{ borderColor: c.border }}>
+                  <h4 className="text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: c.muted }}>Lo que se calla</h4>
+                  <p className="text-base leading-relaxed">{result.analysis?.que_se_deja_fuera}</p>
                 </div>
                 {result.analysis?.lenguaje_emocional?.length > 0 && (
-                  <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
-                    <h4 className="text-xs text-neutral-500 uppercase tracking-widest mb-3">Lenguaje manipulativo</h4>
+                  <div className="rounded-xl border-2 p-6" style={{ borderColor: c.border }}>
+                    <h4 className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: c.muted }}>Lenguaje manipulativo</h4>
                     <div className="flex flex-wrap gap-2">
-                      {result.analysis.lenguaje_emocional.map((t: string, i: number) => <span key={i} className="bg-orange-500/10 text-orange-400 px-3 py-1 rounded-full text-xs">{t}</span>)}
+                      {result.analysis.lenguaje_emocional.map((t: string, i: number) => (
+                        <span key={i} className="px-3 py-1 rounded-full text-sm font-medium" style={{ background: c.orangeBg, color: c.orange }}>{t}</span>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -292,9 +443,10 @@ export default function Home() {
           </div>
         )}
 
-        <footer className="py-20 text-center border-t border-white/5 mt-16">
-          <p className="text-xs text-neutral-600">
-            Herramienta agnóstica — mismo análisis para cualquier político, sin importar partido.
+        {/* Footer */}
+        <footer className="py-12 text-center mt-16 border-t-2" style={{ borderColor: c.border }}>
+          <p className="text-sm" style={{ color: c.muted }}>
+            Herramienta agnóstica — se aplica el mismo análisis a cualquier político, sin importar partido.
           </p>
         </footer>
       </div>

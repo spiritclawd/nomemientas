@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { getTodayStats, getPublicAnalyses } from '@/lib/db'
+import { getTodayStats, getLeaderboard } from '@/lib/db'
 
 export async function GET() {
   try {
     const stats = getTodayStats()
-    const recent = getPublicAnalyses(15)
-    return NextResponse.json({ stats, recent })
+    const leaderboard = getLeaderboard()
+    return NextResponse.json({ stats, leaderboard })
   } catch {
-    return NextResponse.json({ stats: { analysesToday: 0 }, recent: [] })
+    return NextResponse.json({ stats: { analysesToday: 0 }, leaderboard: [] })
   }
 }

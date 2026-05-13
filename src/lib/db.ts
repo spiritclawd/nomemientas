@@ -124,6 +124,24 @@ export function getPublicAnalyses(limit = 20): any[] {
   `).all(limit)
 }
 
+export function getLeaderboard(): any[] {
+  const db = getDb()
+  // Group by politician mention in the analysis, get count + avg honesty
+  return db.prepare(`
+    SELECT
+      politician,
+      COUNT(*) as total_checks,
+      ROUND(AVG(CAST(json_extract(analysis_json, '$.nivel_honestidad') AS REAL)), 1) as avg_honesty,
+      MAX(created_at) as last_seen,
+      json_extract(analysis_json, '$.traduccion_llana') as latest_translation
+    FROM analyses
+    WHERE politician != '' AND politician != 'Desconocido'
+    GROUP BY politician
+    ORDER BY total_checks DESC
+    LIMIT 20
+  `).all()
+}
+
 export function getAnalysisById(id: number): Record<string, any> | null {
   const db = getDb()
   const row = db.prepare('SELECT * FROM analyses WHERE id = ?').get(id)
