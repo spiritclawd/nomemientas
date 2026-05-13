@@ -1,8 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { extractFromUrl } from '@/lib/extract'
+import { extractFromUrl, validateUrl } from '@/lib/extract'
 import { analyzeText } from '@/lib/analyze'
 
+// Simple in-memory rate limiter (per IP)
+const rateLimit = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const entry = rateLimit.get(ip)
+
+  if (!entry || now > entry.resetAt) {
+    rateLimit.set(ip, { count: 1, resetAt: now + 60_000 })
+    return true
+  }
+
+  if (entry.count >= 5) {
+    return false
+  }
+
+  entry.count++
+  return true
+}
+
+function sanitizeInput(text: string): string {
+  let clean = text.replace(/<[^>]*>/g, '')
+  clean = clean.replace(/[\u200B-\u200D\u2060]/g, '')
+  return clean.trim()
+}
+
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ||
+             req.headers.get('x-real-ip') ||
+             'anonymous'
+
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: 'Demasiadas peticiones. Espera un momento.' },
+      { status: 429 }
+    )
+  }
+
   try {
     const body = await req.json()
     const { url, text } = body
@@ -13,18 +50,33 @@ export async function POST(req: NextRequest) {
     let title = ''
 
     if (url) {
-      const extraction = await extractFromUrl(url)
-      if (!extraction.text) {
+      const urlValidation = validateUrl(url)
+      if (!urlValidation.valid) {
         return NextResponse.json(
-          { error: 'No se pudo extraer contenido de esta URL. Prueba a pegar el texto directamente.' },
+          { error: urlValidation.reason },
           { status: 400 }
         )
       }
-      sourceText = extraction.text
+
+      // Race extraction against a 15s timeout
+      const extraction = await Promise.race([
+        extractFromUrl(url).catch(() => ({ text: '', title: '', sourceType: 'url' as const })),
+        new Promise<{ text: string; title: string; sourceType: 'url' }>((_, rej) =>
+          setTimeout(() => rej(new Error('Extracción demasiado lenta')), 15_000)
+        )
+      ])
+
+      if (!extraction.text || extraction.text.length < 50) {
+        return NextResponse.json(
+          { error: 'No se pudo extraer contenido suficiente de esta URL. Prueba a pegar el texto directamente.' },
+          { status: 400 }
+        )
+      }
+      sourceText = sanitizeInput(extraction.text)
       sourceType = extraction.sourceType
-      title = extraction.title
+      title = sanitizeInput(extraction.title)
     } else if (text) {
-      sourceText = text
+      sourceText = sanitizeInput(text)
       sourceType = 'text'
       processedUrl = ''
     } else {
@@ -34,17 +86,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (sourceText.length < 50) {
-      return NextResponse.json(
-        { error: 'El texto extraído es demasiado corto para un análisis significativo.' },
-        { status: 400 }
+    // Run analysis with timeout
+    const { analysis, politician, party } = await Promise.race([
+      analyzeText(sourceText),
+      new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error('El análisis tardó demasiado. Inténtalo con un texto más corto.')), 60_000)
       )
-    }
+    ])
 
-    // Run analysis
-    const { analysis, politician, party } = await analyzeText(sourceText)
-
-    // Save to hemeroteca (DB is optional, works without it)
+    // Save to hemeroteca (graceful fail if DB unavailable)
     let analysisId: number | null = null
     try {
       const { saveAnalysis } = await import('@/lib/db')
@@ -55,9 +105,8 @@ export async function POST(req: NextRequest) {
         sourceType,
         sourceText.slice(0, 5000)
       ) as number
-    } catch (dbErr) {
-      // DB not available (e.g. serverless), analysis still works
-      console.warn('DB not available:', dbErr)
+    } catch {
+      // DB unavailable — analysis still delivered
     }
 
     return NextResponse.json({
@@ -71,7 +120,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('Analysis error:', err)
     return NextResponse.json(
-      { error: err.message || 'Error interno del servidor' },
+      { error: 'Error interno del servidor. Inténtalo de nuevo.' },
       { status: 500 }
     )
   }
