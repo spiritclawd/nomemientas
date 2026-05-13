@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractFromUrl } from '@/lib/extract'
 import { analyzeText } from '@/lib/analyze'
-import { saveAnalysis } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,7 +15,6 @@ export async function POST(req: NextRequest) {
     if (url) {
       const extraction = await extractFromUrl(url)
       if (!extraction.text) {
-        // Fallback: try to fetch via web_search or just use URL
         return NextResponse.json(
           { error: 'No se pudo extraer contenido de esta URL. Prueba a pegar el texto directamente.' },
           { status: 400 }
@@ -46,17 +44,24 @@ export async function POST(req: NextRequest) {
     // Run analysis
     const { analysis, politician, party } = await analyzeText(sourceText)
 
-    // Save to hemeroteca
-    const id = saveAnalysis(
-      processedUrl || 'manual',
-      analysis.resumen || '',
-      JSON.stringify(analysis),
-      sourceType,
-      sourceText.slice(0, 5000)  // Store truncated content
-    )
+    // Save to hemeroteca (DB is optional, works without it)
+    let analysisId: number | null = null
+    try {
+      const { saveAnalysis } = await import('@/lib/db')
+      analysisId = saveAnalysis(
+        processedUrl || 'manual',
+        analysis.resumen || '',
+        JSON.stringify(analysis),
+        sourceType,
+        sourceText.slice(0, 5000)
+      ) as number
+    } catch (dbErr) {
+      // DB not available (e.g. serverless), analysis still works
+      console.warn('DB not available:', dbErr)
+    }
 
     return NextResponse.json({
-      id: Number(id),
+      id: analysisId,
       url: processedUrl,
       title,
       analysis,
