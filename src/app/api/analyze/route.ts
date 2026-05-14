@@ -66,6 +66,8 @@ export async function POST(req: NextRequest) {
         )
       ])
 
+  console.log('[EXTRACT DEBUG] text length:', extraction?.text?.length, 'title length:', extraction?.title?.length, 'type:', extraction?.sourceType)
+
       if (!extraction.text || extraction.text.length < 50) {
         return NextResponse.json(
           { error: 'No se pudo extraer contenido suficiente de esta URL. Prueba a pegar el texto directamente.' },
