@@ -1,0 +1,23 @@
+[Unit]
+Description=nomemientas Political Speech Analyzer
+After=network.target cloudflared.service
+Wants=cloudflared.service
+
+[Service]
+Type=simple
+User=carlos
+WorkingDirectory=/home/carlos/nomemientas
+Environment=NODE_ENV=production
+Environment=PORT=8085
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=NOUS_API_KEY=sk-nous-UzS8gBAngOhjGYExCr8yoVHXhujvxpXE
+Environment=NOUS_BASE_URL=https://inference-api.nousresearch.com/v1
+Environment=PATH=/home/carlos/.nvm/versions/node/v22.22.1/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/carlos/.nvm/versions/node/v22.22.1/bin/node /home/carlos/nomemientas/node_modules/next/dist/bin/next start
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

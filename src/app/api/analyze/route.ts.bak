@@ -86,15 +86,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Guard: ensure enough text
-    if (sourceText.length < 50) {
-      return NextResponse.json(
-        { error: "El texto es demasiado corto para analizar. Necesitamos al menos 50 caracteres." },
-        { status: 400 }
-      )
-    }
-
-    // Guard: ensure enough text to analyze
+    // Guard: ensure we have enough text to analyze
     if (sourceText.length < 50) {
       return NextResponse.json(
         { error: 'El texto es demasiado corto para analizar. Necesitamos al menos 50 caracteres.' },
