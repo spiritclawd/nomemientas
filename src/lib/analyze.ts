@@ -47,25 +47,22 @@ export async function analyzeText(text: string): Promise<{
     ? text.slice(0, MAX_TEXT) + '...'
     : text
 
-  // Read credentials from Vercel env vars (or local fallback)
-  const apiKey = process.env.NOUS_API_KEY || ''
-  const baseUrl = process.env.NOUS_BASE_URL || 'https://inference-api.nousresearch.com/v1'
+  // For Vercel, use env vars. For local hosting, use the real auth path.
+  let apiKey = process.env.NOUS_API_KEY || ''
+  let baseUrl = process.env.NOUS_BASE_URL || ''
 
   if (!apiKey) {
-    // Local fallback only for development
-    if (process.env.NODE_ENV !== 'production') {
-      try {
-        const authPath = path.join(process.env.HOME || '/home/carlos', '.hermes', 'auth.json')
-        if (fs.existsSync(authPath)) {
-          const auth = JSON.parse(fs.readFileSync(authPath, 'utf-8'))
-          const localKey = auth.providers?.nous?.agent_key
-          if (localKey) {
-            console.log('Using local auth key (dev mode)')
-            // Use local key for this invocation
-          }
-        }
-      } catch {}
-    }
+    try {
+      const authPath = require('path').join(process.env.HOME || '/home/carlos', '.hermes', 'auth.json')
+      if (require('fs').existsSync(authPath)) {
+        const auth = JSON.parse(require('fs').readFileSync(authPath, 'utf-8'))
+        apiKey = auth.providers?.nous?.agent_key || ''
+        baseUrl = auth.providers?.nous?.inference_base_url || 'https://inference-api.nousresearch.com/v1'
+      }
+    } catch {}
+  }
+
+  if (!apiKey) {
     throw new Error('Configuración de API no disponible')
   }
 

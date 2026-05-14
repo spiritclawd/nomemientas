@@ -73,6 +73,7 @@ export default function Home() {
   const [tab, setTab] = useState<'summary' | 'claims' | 'fallacies' | 'omissions'>('summary')
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
   const [copied, setCopied] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
   const [stats, setStats] = useState<{ analysesToday: number; leaderboard: any[] }>({ analysesToday: 0, leaderboard: [] })
   const [showLeaderboard, setShowLeaderboard] = useState(false)
 
@@ -147,6 +148,22 @@ export default function Home() {
     setCopied(true)
     track(result?.id, 'share')
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const downloadImage = async () => {
+    const node = document.getElementById('share-card')
+    if (!node) return
+    try {
+      const { toPng } = await import('html-to-image')
+      const dataUrl = await toPng(node, { cacheBust: true, quality: 1 })
+      const link = document.createElement('a')
+      link.download = `nomemientas-${Date.now()}.png`
+      link.href = dataUrl
+      link.click()
+      track(result?.id, 'share_image')
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const handleTweet = () => {
@@ -444,6 +461,57 @@ export default function Home() {
         )}
 
         {/* Footer */}
+        {/* Share Image Modal */}
+        {showShareModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+            <div className="rounded-2xl overflow-hidden max-w-md w-full" style={{ background: c.card }}>
+              <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: c.border }}>
+                <h3 className="font-bold text-lg" style={{ color: c.pageText }}>Compartir como imagen</h3>
+                <button onClick={() => setShowShareModal(false)} className="text-2xl" style={{ color: c.muted }}>×</button>
+              </div>
+              <div className="p-6 flex justify-center bg-gray-100">
+                <div
+                  id="share-card"
+                  className="rounded-xl p-6 shadow-lg w-full max-w-sm"
+                  style={{
+                    background: dark ? 'linear-gradient(135deg, #1a1a2e 0%, #0f0f11 100%)' : 'linear-gradient(135deg, #f5f1eb 0%, #e8e0d4 100%)',
+                    color: dark ? '#fff' : '#1a1a2e',
+                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-2xl">🗣️</span>
+                    <span className="font-bold text-xl">no<span style={{ color: '#ff4444' }}>me</span>mientas</span>
+                  </div>
+                  <div className="text-center mb-6">
+                    <p className="text-4xl font-black mb-2" style={{ color:
+                      result.analysis?.nivel_honestidad >= 7 ? '#4ade80' :
+                      result.analysis?.nivel_honestidad >= 4 ? '#facc15' : '#f87171'
+                    }}>
+                      {result.analysis?.nivel_honestidad}<span className="text-xl font-normal">/10</span>
+                    </p>
+                    <p className="text-xs uppercase tracking-wider opacity-70">Honestidad</p>
+                  </div>
+                  <blockquote className="text-center text-sm italic leading-relaxed mb-4" style={{ color: dark ? '#e5e5e5' : '#5a5a5a' }}>
+                    “{result.analysis?.traduccion_llana}”
+                  </blockquote>
+                  {result.analysis?.politician && (
+                    <p className="text-center text-xs opacity-60">— {result.analysis?.politician}</p>
+                  )}
+                  <div className="mt-6 pt-4 border-t dark ? 'border-white/10' : 'border-black/10' text-center">
+                    <p className="text-xs opacity-60">nomemientas.org</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 border-t flex justify-end" style={{ borderColor: c.border }}>
+                <button onClick={downloadImage} className="font-bold px-6 py-2 rounded-lg text-white" style={{ background: c.accent }}>
+                  Descargar PNG
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <footer className="py-12 text-center mt-16 border-t-2" style={{ borderColor: c.border }}>
           <p className="text-sm" style={{ color: c.muted }}>
             Herramienta agnóstica — se aplica el mismo análisis a cualquier político, sin importar partido.
