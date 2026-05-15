@@ -143,6 +143,22 @@ export default function Home() {
     return `nomemientas — ${a?.traduccion_llana || a?.resumen}\n\nHonestidad: ${a?.nivel_honestidad}/10\nnomemientas.org`
   }
 
+  const handleNativeShare = async () => {
+    const a = result?.analysis
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'nomemientas — Análisis político',
+          text: `Honestidad: ${a?.nivel_honestidad}/10 — "${a?.traduccion_llana}"`,
+          url: 'https://nomemientas.org',
+        })
+        track(result?.id, 'share_native')
+      } catch {}
+    } else {
+      handleCopy()
+    }
+  }
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText(shareText())
     setCopied(true)
@@ -343,9 +359,15 @@ export default function Home() {
             </div>
 
             {/* Share */}
-            <div className="flex items-center gap-2 justify-center">
+            <div className="flex items-center gap-2 justify-center flex-wrap">
               <button onClick={handleCopy} className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition" style={{ borderColor: c.border, color: c.muted }}>
                 {copied ? '✓ Copiado' : '📋 Copiar resultado'}
+              </button>
+              <button onClick={handleNativeShare} className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition sm:hidden" style={{ borderColor: c.border, color: c.muted }}>
+                📤 Compartir
+              </button>
+              <button onClick={() => setShowShareModal(true)} className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition" style={{ borderColor: c.border, color: c.muted }}>
+                🖼️ Compartir como imagen
               </button>
               <button onClick={handleTweet} className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition" style={{ borderColor: c.border, color: c.muted }}>
                 Compartir en X
@@ -472,34 +494,53 @@ export default function Home() {
               <div className="p-6 flex justify-center bg-gray-100">
                 <div
                   id="share-card"
-                  className="rounded-xl p-6 shadow-lg w-full max-w-sm"
+                  className="rounded-xl overflow-hidden w-full max-w-sm"
                   style={{
                     background: dark ? 'linear-gradient(135deg, #1a1a2e 0%, #0f0f11 100%)' : 'linear-gradient(135deg, #f5f1eb 0%, #e8e0d4 100%)',
                     color: dark ? '#fff' : '#1a1a2e',
                     fontFamily: 'system-ui, -apple-system, sans-serif',
                   }}
                 >
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-2xl">🗣️</span>
-                    <span className="font-bold text-xl">no<span style={{ color: '#ff4444' }}>me</span>mientas</span>
-                  </div>
-                  <div className="text-center mb-6">
-                    <p className="text-4xl font-black mb-2" style={{ color:
-                      result.analysis?.nivel_honestidad >= 7 ? '#4ade80' :
-                      result.analysis?.nivel_honestidad >= 4 ? '#facc15' : '#f87171'
-                    }}>
-                      {result.analysis?.nivel_honestidad}<span className="text-xl font-normal">/10</span>
+                  {/* Top accent bar */}
+                  <div style={{ height: '4px', background: result.analysis?.nivel_honestidad >= 7 ? '#4ade80' : result.analysis?.nivel_honestidad >= 4 ? '#facc15' : '#f87171' }} />
+                  
+                  <div className="p-6">
+                    {/* Brand */}
+                    <div className="flex items-center gap-2 mb-5">
+                      <span className="text-2xl">🗣️</span>
+                      <span className="font-bold text-lg tracking-tight">no<span style={{ color: '#ff4444' }}>me</span>mientas</span>
+                    </div>
+
+                    {/* Politician name */}
+                    {result.analysis?.politician && (
+                      <p className="text-lg font-bold mb-3" style={{ color: dark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)' }}>
+                        {result.analysis.politician}
+                      </p>
+                    )}
+
+                    {/* Score */}
+                    <div className="text-center mb-4">
+                      <p className="text-5xl font-black mb-1" style={{ color:
+                        result.analysis?.nivel_honestidad >= 7 ? '#4ade80' :
+                        result.analysis?.nivel_honestidad >= 4 ? '#facc15' : '#f87171'
+                      }}>
+                        {result.analysis?.nivel_honestidad}<span className="text-lg font-normal" style={{ color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)' }}>/10</span>
+                      </p>
+                      <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>Honestidad</p>
+                    </div>
+
+                    {/* Quote */}
+                    <blockquote className="text-center text-sm italic leading-relaxed px-2" style={{ color: dark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.65)' }}>
+                      “{result.analysis?.traduccion_llana}”
+                    </blockquote>
+
+                    {/* Divider */}
+                    <div className="mt-6 mb-3 border-t" style={{ borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }} />
+
+                    {/* Footer */}
+                    <p className="text-center text-xs font-medium" style={{ color: dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)' }}>
+                      Analizado en nomemientas.org
                     </p>
-                    <p className="text-xs uppercase tracking-wider opacity-70">Honestidad</p>
-                  </div>
-                  <blockquote className="text-center text-sm italic leading-relaxed mb-4" style={{ color: dark ? '#e5e5e5' : '#5a5a5a' }}>
-                    “{result.analysis?.traduccion_llana}”
-                  </blockquote>
-                  {result.analysis?.politician && (
-                    <p className="text-center text-xs opacity-60">— {result.analysis?.politician}</p>
-                  )}
-                  <div className="mt-6 pt-4 border-t dark ? 'border-white/10' : 'border-black/10' text-center">
-                    <p className="text-xs opacity-60">nomemientas.org</p>
                   </div>
                 </div>
               </div>
