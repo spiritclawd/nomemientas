@@ -60,8 +60,8 @@ export async function POST(req: NextRequest) {
 
       // Race extraction against a 15s timeout
       const extraction = await Promise.race([
-        extractFromUrl(url).catch(() => ({ text: '', title: '', sourceType: 'url' as const })),
-        new Promise<{ text: string; title: string; sourceType: 'url' }>((_, rej) =>
+        extractFromUrl(url).catch(() => ({ text: '', title: '', sourceType: 'url' as const, reason: 'Error al extraer contenido.' })),
+        new Promise<{ text: string; title: string; sourceType: 'url'; reason?: string }>((_, rej) =>
           setTimeout(() => rej(new Error('Extracción demasiado lenta')), 15_000)
         )
       ])
@@ -69,8 +69,9 @@ export async function POST(req: NextRequest) {
   console.log('[EXTRACT DEBUG] text length:', extraction?.text?.length, 'title length:', extraction?.title?.length, 'type:', extraction?.sourceType)
 
       if (!extraction.text || extraction.text.length < 50) {
+        const failReason = (extraction as any).reason || 'No se pudo extraer contenido suficiente de esta URL. Prueba a pegar el texto directamente.'
         return NextResponse.json(
-          { error: 'No se pudo extraer contenido suficiente de esta URL. Prueba a pegar el texto directamente.' },
+          { error: failReason },
           { status: 400 }
         )
       }
@@ -88,15 +89,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Guard: ensure enough text
-    if (sourceText.length < 50) {
-      return NextResponse.json(
-        { error: "El texto es demasiado corto para analizar. Necesitamos al menos 50 caracteres." },
-        { status: 400 }
-      )
-    }
-
-    // Guard: ensure enough text to analyze
+    // Guard: enough text to analyze
     if (sourceText.length < 50) {
       return NextResponse.json(
         { error: 'El texto es demasiado corto para analizar. Necesitamos al menos 50 caracteres.' },
@@ -137,6 +130,19 @@ export async function POST(req: NextRequest) {
     })
   } catch (err: any) {
     console.error('Analysis error:', err)
+    const msg = err?.message || ''
+    if (msg.includes('tardó demasiado') || msg.includes('Extracción demasiado lenta') || msg.includes('timeout') || msg.includes('timed out')) {
+      return NextResponse.json(
+        { error: 'El análisis tardó demasiado. Prueba con un texto más corto o inténtalo de nuevo.' },
+        { status: 408 }
+      )
+    }
+    if (msg.includes('API')) {
+      return NextResponse.json(
+        { error: 'Error en el servicio de análisis. Inténtalo de nuevo en unos segundos.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json(
       { error: 'Error interno del servidor. Inténtalo de nuevo.' },
       { status: 500 }

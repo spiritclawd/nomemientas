@@ -4,6 +4,7 @@ export interface ExtractionResult {
   text: string
   title: string
   sourceType: 'youtube' | 'article' | 'twitter' | 'unknown'
+  reason?: string  // human-readable failure reason
 }
 
 export function validateUrl(url: string): { valid: true } | { valid: false; reason: string } {
@@ -47,20 +48,28 @@ async function extractYouTube(url: string): Promise<ExtractionResult> {
     const { YoutubeTranscript } = await import('youtube-transcript')
     const videoId = extractYouTubeId(url)
     if (!videoId || videoId.length > 11 || !videoId.match(/^[a-zA-Z0-9_-]+$/)) {
-      return { text: '', title: '', sourceType: 'youtube' }
+      return { text: '', title: '', sourceType: 'youtube', reason: 'No se pudo identificar el ID del video.' }
     }
     const transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'es' })
     const text = transcript.map(t => t.text).join(' ')
     return { text, title: `YouTube video (${videoId})`, sourceType: 'youtube' }
-  } catch {
+  } catch (e: any) {
+    // Try fallback — any language
     try {
       const { YoutubeTranscript } = await import('youtube-transcript')
       const videoId = extractYouTubeId(url)
       const transcript = await YoutubeTranscript.fetchTranscript(videoId)
       const text = transcript.map(t => t.text).join(' ')
       return { text, title: `YouTube video (${videoId})`, sourceType: 'youtube' }
-    } catch {
-      return { text: '', title: '', sourceType: 'youtube' }
+    } catch (fallbackErr: any) {
+      const msg = fallbackErr?.message?.toLowerCase() || ''
+      if (msg.includes('disabled') || msg.includes('caption') || msg.includes('transcript')) {
+        return {
+          text: '', title: '', sourceType: 'youtube',
+          reason: 'Este video no tiene subtítulos disponibles. Prueba con otro video que tenga subtítulos activados o pega el texto manualmente.'
+        }
+      }
+      return { text: '', title: '', sourceType: 'youtube', reason: 'Error al extraer el transcript de YouTube. Verifica que la URL sea correcta.' }
     }
   }
 }
@@ -76,7 +85,7 @@ async function extractTwitter(url: string): Promise<ExtractionResult> {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; nomemientas/1.0)' },
       redirect: 'follow',
     })
-    if (!res.ok) return { text: '', title: '', sourceType: 'twitter' }
+    if (!res.ok) return { text: '', title: '', sourceType: 'twitter', reason: 'Twitter no está disponible o la URL no es correcta.' }
     const rawHtml = await res.text()
     const cleanHtml = rawHtml.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
     const $ = cheerio.load(cleanHtml)
@@ -92,9 +101,10 @@ async function extractTwitter(url: string): Promise<ExtractionResult> {
     }
     const text = textFromJson || ogDesc || metaDesc || ''
     const title = ogDesc || metaDesc || ''
+    if (!text) return { text: '', title: '', sourceType: 'twitter', reason: 'No se pudo extraer el contenido del tuit. Prueba a pegar el texto directamente.' }
     return { text: cleanText(text), title, sourceType: 'twitter' }
   } catch {
-    return { text: '', title: '', sourceType: 'twitter' }
+    return { text: '', title: '', sourceType: 'twitter', reason: 'Error al acceder a Twitter. Prueba a pegar el texto directamente.' }
   }
 }
 
@@ -106,10 +116,10 @@ async function extractArticle(url: string): Promise<ExtractionResult> {
       // Add a hard 12 second timeout for Vercel serverless
       signal: AbortSignal.timeout(12000),
     })
-    if (!res.ok) return { text: '', title: '', sourceType: 'article' }
+    if (!res.ok) return { text: '', title: '', sourceType: 'article', reason: `No se pudo acceder al artículo (error ${res.status}). Verifica que la URL sea correcta.` }
     const contentLength = res.headers.get('content-length')
     if (contentLength && parseInt(contentLength) > 5 * 1024 * 1024) {
-      return { text: '', title: '', sourceType: 'article' }
+      return { text: '', title: '', sourceType: 'article', reason: 'El artículo es demasiado grande para procesarlo.' }
     }
     const rawHtml = await res.text()
     const cleanHtml = rawHtml.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -120,6 +130,9 @@ async function extractArticle(url: string): Promise<ExtractionResult> {
     if (!body || body.length < 100) {
       body = $('p').map((_, el) => $(el).text()).get().join('\n\n')
     }
+    if (!body || body.length < 50) {
+      return { text: '', title: '', sourceType: 'article', reason: 'No se pudo extraer el contenido del artículo. Prueba a pegar el texto directamente.' }
+    }
     const title = $('meta[property="og:title"]').attr('content') ||
                   $('title').text() ||
                   $('h1').first().text()
@@ -128,8 +141,11 @@ async function extractArticle(url: string): Promise<ExtractionResult> {
       title: cleanText(title),
       sourceType: 'article',
     }
-  } catch {
-    return { text: '', title: '', sourceType: 'unknown' }
+  } catch (e: any) {
+    if (e?.name === 'AbortError') {
+      return { text: '', title: '', sourceType: 'unknown', reason: 'La extracción del artículo tardó demasiado. Prueba a pegar el texto directamente.' }
+    }
+    return { text: '', title: '', sourceType: 'unknown', reason: 'Error al acceder al artículo. Verifica la URL o pega el texto directamente.' }
   }
 }
 

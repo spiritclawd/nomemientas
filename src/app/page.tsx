@@ -307,8 +307,15 @@ export default function Home() {
         {/* Error */}
         {error && (
           <div className="max-w-2xl mx-auto mt-6">
-            <div className="rounded-xl p-4 border-2" style={{ borderColor: c.errorBorder, background: c.errorBg }}>
-              <p className="text-sm" style={{ color: c.red }}>{error}</p>
+            <div className="rounded-xl p-4 border-2 flex items-start gap-3" style={{ borderColor: c.errorBorder, background: c.errorBg }}>
+              <span className="text-lg shrink-0 mt-0.5">
+                {error.includes('subtítulos') || error.includes('transcript') ? '📹' :
+                 error.includes('Twitter') || error.includes('tuit') ? '🐦' :
+                 error.includes('tardó') || error.includes('lenta') ? '⏰' :
+                 error.includes('conexión') || error.includes('red') ? '📡' :
+                 error.includes('API') ? '🤖' : '⚠️'}
+              </span>
+              <p className="text-sm leading-relaxed" style={{ color: c.red }}>{error}</p>
             </div>
           </div>
         )}
