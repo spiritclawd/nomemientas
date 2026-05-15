@@ -20,14 +20,41 @@ export function validateUrl(url: string): { valid: true } | { valid: false; reas
   }
 
   const hostname = parsedUrl.hostname.toLowerCase()
+  const ipMatch = hostname.match(/^\[([^\]]+)\]$/)
+  const rawHost = ipMatch ? ipMatch[1] : hostname
+
+  // IPv4 private ranges + loopback + cloud metadata
   if (
     hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' ||
     hostname.startsWith('10.') ||
     hostname.match(/^172\.(1[6-9]|2\d|3[01])\./) ||
     hostname.startsWith('192.168.') ||
-    hostname.includes('local') || hostname.includes('metadata') || hostname.includes('internal')
+    hostname.includes('metadata') || hostname.includes('internal') || hostname.includes('local')
   ) {
     return { valid: false, reason: 'Solo se permiten URLs públicas' }
+  }
+
+  // IPv6 private ranges
+  if (
+    rawHost === '::1' || rawHost === '::' ||
+    rawHost.startsWith('fd') || rawHost.startsWith('fc') ||  // ULA fd00::/8
+    rawHost.startsWith('fe80:') || rawHost.startsWith('fe81:') || // link-local
+    rawHost.match(/^fe[89ab][0-9a-f]:/i) // broader link-local fe80::/10
+  ) {
+    return { valid: false, reason: 'Solo se permiten URLs públicas' }
+  }
+
+  // Cloud metadata IPs
+  const ipv4Octets = hostname.split('.').map(Number)
+  if (ipv4Octets.length === 4 && !ipv4Octets.some(isNaN)) {
+    // 169.254.0.0/16 (link-local, includes AWS/GCP/Azure metadata)
+    if (ipv4Octets[0] === 169 && ipv4Octets[1] === 254) {
+      return { valid: false, reason: 'Solo se permiten URLs públicas' }
+    }
+    // Also block 100.64.0.0/10 (CGNAT, used by some internal infra)
+    if (ipv4Octets[0] === 100 && ipv4Octets[1] >= 64 && ipv4Octets[1] <= 127) {
+      return { valid: false, reason: 'Solo se permiten URLs públicas' }
+    }
   }
 
   return { valid: true }
@@ -83,8 +110,20 @@ async function extractTwitter(url: string): Promise<ExtractionResult> {
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; nomemientas/1.0)' },
-      redirect: 'follow',
+      redirect: 'manual',
     })
+    if (!res.ok && res.status >= 300 && res.status < 400) {
+      // Redirect — validate the new location before following
+      const location = res.headers.get('location')
+      if (location) {
+        const locUrl = new URL(location, url).href
+        const validation = validateUrl(locUrl)
+        if (!validation.valid) {
+          return { text: '', title: '', sourceType: 'twitter', reason: 'La URL redirige a un destino no permitido.' }
+        }
+        return extractTwitter(locUrl)
+      }
+    }
     if (!res.ok) return { text: '', title: '', sourceType: 'twitter', reason: 'Twitter no está disponible o la URL no es correcta.' }
     const rawHtml = await res.text()
     const cleanHtml = rawHtml.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -112,10 +151,20 @@ async function extractArticle(url: string): Promise<ExtractionResult> {
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; nomemientas/1.0)' },
-      redirect: 'follow',
-      // Add a hard 12 second timeout for Vercel serverless
+      redirect: 'manual',
       signal: AbortSignal.timeout(12000),
     })
+    if (!res.ok && res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location')
+      if (location) {
+        const locUrl = new URL(location, url).href
+        const validation = validateUrl(locUrl)
+        if (!validation.valid) {
+          return { text: '', title: '', sourceType: 'article', reason: 'La URL redirige a un destino no permitido.' }
+        }
+        return extractArticle(locUrl)
+      }
+    }
     if (!res.ok) return { text: '', title: '', sourceType: 'article', reason: `No se pudo acceder al artículo (error ${res.status}). Verifica que la URL sea correcta.` }
     const contentLength = res.headers.get('content-length')
     if (contentLength && parseInt(contentLength) > 5 * 1024 * 1024) {

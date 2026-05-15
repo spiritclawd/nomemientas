@@ -1,26 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractFromUrl, validateUrl } from '@/lib/extract'
 import { analyzeText } from '@/lib/analyze'
-
-// Simple in-memory rate limiter (per IP)
-const rateLimit = new Map<string, { count: number; resetAt: number }>()
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now()
-  const entry = rateLimit.get(ip)
-
-  if (!entry || now > entry.resetAt) {
-    rateLimit.set(ip, { count: 1, resetAt: now + 60_000 })
-    return true
-  }
-
-  if (entry.count >= 5) {
-    return false
-  }
-
-  entry.count++
-  return true
-}
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 function sanitizeInput(text: string): string {
   let clean = text.replace(/<[^>]*>/g, '')
@@ -29,14 +10,13 @@ function sanitizeInput(text: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ||
-             req.headers.get('x-real-ip') ||
-             'anonymous'
+  const ip = getClientIp(req)
 
-  if (!checkRateLimit(ip)) {
+  const rl = checkRateLimit(ip, { maxRequests: 5, windowMs: 60_000 })
+  if (!rl.allowed) {
     return NextResponse.json(
-      { error: 'Demasiadas peticiones. Espera un momento.' },
-      { status: 429 }
+      { error: 'Demasiadas peticiones. Espera un momento.', retryAfter: Math.ceil(rl.resetIn / 1000) },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.resetIn / 1000)) } }
     )
   }
 
