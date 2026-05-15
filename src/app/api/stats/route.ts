@@ -3,6 +3,14 @@ import { getTodayStats, getLeaderboard, getPartyLeaderboard } from '@/lib/db'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import type { NextRequest } from 'next/server'
 
+const MAINTENANCE_RESPONSE = {
+  stats: { analysesToday: 0 },
+  leaderboard: [],
+  parties: [],
+  maintenance: true,
+  error: '¡Estamos desbordados! 🚀 El tráfico ha superado nuestras expectativas y estamos trabajando para ampliar la capacidad. Vuelve a intentarlo en unos minutos.'
+}
+
 async function tryTunnelProxy(): Promise<Response | null> {
   if (!process.env.VERCEL) return null
   try {
@@ -29,7 +37,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data)
   }
 
-  // Fallback: local SQLite (empty on Vercel, full on laptop)
+  // Tunnel unreachable
+  if (process.env.VERCEL) {
+    return NextResponse.json(MAINTENANCE_RESPONSE, { status: 503 })
+  }
+
+  // Local fallback: SQLite
   try {
     const stats = getTodayStats()
     const leaderboard = getLeaderboard()

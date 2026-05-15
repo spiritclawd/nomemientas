@@ -10,7 +10,7 @@ function sanitizeInput(text: string): string {
   return clean.trim()
 }
 
-// Try to proxy through the tunnel on Vercel. Falls back to local execution if tunnel is unreachable.
+// Try to proxy through the tunnel on Vercel. Returns the response if reachable.
 async function tryTunnelProxy(body: any, signal: AbortSignal): Promise<Response | null> {
   if (!process.env.VERCEL) return null // only proxy on Vercel
   try {
@@ -19,13 +19,19 @@ async function tryTunnelProxy(body: any, signal: AbortSignal): Promise<Response 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(25000), // shorter timeout for fallback
+      signal,
     })
     if (res.ok || res.status === 400) return res // pass through client errors too
     return null
   } catch {
-    return null // tunnel unreachable — fall through to local
+    return null
   }
+}
+
+// Maintenance response for when the tunnel is down (Vercel can't reach the laptop)
+const MAINTENANCE_RESPONSE = {
+  error: '¡Estamos desbordados! 🚀 El tráfico ha superado nuestras expectativas y estamos trabajando para ampliar la capacidad. Vuelve a intentarlo en unos minutos.',
+  maintenance: true,
 }
 
 export async function POST(req: NextRequest) {
@@ -45,13 +51,18 @@ export async function POST(req: NextRequest) {
     const isUrl = !!(url && typeof url === 'string')
 
     // Try tunnel proxy first (Vercel only)
-    const tunnelRes = await tryTunnelProxy(body, AbortSignal.timeout(30000))
+    const tunnelRes = await tryTunnelProxy(body, AbortSignal.timeout(25000))
     if (tunnelRes) {
       const data = await tunnelRes.json()
       return NextResponse.json(data, { status: tunnelRes.status })
     }
 
-    // Falls through to local execution below
+    // Tunnel unreachable on Vercel — show maintenance message instead of broken features
+    if (process.env.VERCEL) {
+      return NextResponse.json(MAINTENANCE_RESPONSE, { status: 503 })
+    }
+
+    // Local execution (only reached on laptop)
     let sourceText = ''
     let sourceType = 'text'
     let processedUrl = url || ''
