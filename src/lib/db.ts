@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import * as path from 'path'
 import * as fs from 'fs'
+import * as crypto from 'crypto'
 
 const DB_PATH = path.join(process.cwd(), 'db', 'nomemientas.db')
 
@@ -40,6 +41,16 @@ export function getDb(): Database.Database {
       CREATE INDEX IF NOT EXISTS idx_event_type ON events(event_type);
       CREATE INDEX IF NOT EXISTS idx_event_analysis ON events(analysis_id);
       CREATE INDEX IF NOT EXISTS idx_event_date ON events(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS analysis_cache (
+        input_hash TEXT PRIMARY KEY,
+        input_type TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_cache_hash ON analysis_cache(input_hash);
+      CREATE INDEX IF NOT EXISTS idx_cache_created ON analysis_cache(created_at DESC);
     `)
   }
   return db
@@ -183,4 +194,35 @@ export function getAnalysisById(id: number): Record<string, any> | null {
   const db = getDb()
   const row = db.prepare('SELECT * FROM analyses WHERE id = ?').get(id)
   return row || null
+}
+
+// ---- Analysis Cache ----
+
+export function hashInput(input: string): string {
+  return crypto.createHash('sha256').update(input).digest('hex').slice(0, 16)
+}
+
+export function getCachedAnalysis(inputHash: string): string | null {
+  try {
+    const db = getDb()
+    const row = db.prepare(
+      'SELECT result_json FROM analysis_cache WHERE input_hash = ? AND created_at > datetime("now", "-24 hours")'
+    ).get(inputHash) as { result_json: string } | undefined
+    return row?.result_json || null
+  } catch {
+    return null
+  }
+}
+
+export function setCachedAnalysis(inputHash: string, inputType: string, resultJson: string): void {
+  try {
+    const db = getDb()
+    // Prune stale entries first (keep last 500)
+    db.exec('DELETE FROM analysis_cache WHERE input_hash NOT IN (SELECT input_hash FROM analysis_cache ORDER BY created_at DESC LIMIT 500)')
+    db.prepare(
+      'INSERT OR REPLACE INTO analysis_cache (input_hash, input_type, result_json) VALUES (?, ?, ?)'
+    ).run(inputHash, inputType, resultJson)
+  } catch {
+    // Cache is non-critical
+  }
 }
