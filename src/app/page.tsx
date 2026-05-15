@@ -634,9 +634,24 @@ export default function Home() {
           </div>
         )}
 
-        <footer className="py-12 text-center mt-16 border-t-2" style={{ borderColor: c.border }}>
-          <p className="text-sm" style={{ color: c.muted }}>
+        <footer className="py-12 text-center mt-16 border-t-2 space-y-4" style={{ borderColor: c.border }}>
+          <p className="text-sm max-w-md mx-auto" style={{ color: c.muted }}>
             Herramienta agnóstica — se aplica el mismo análisis a cualquier político, sin importar partido.
+          </p>
+          <div className="flex items-center justify-center gap-4 pt-2">
+            <a href="https://x.com/nomemientas" target="_blank" rel="noopener noreferrer"
+              className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition hover:opacity-70 inline-flex items-center gap-2"
+              style={{ borderColor: c.border, color: c.muted }}>
+               Compartir feedback
+            </a>
+            <a href="https://whatsapp.com/channel/..." target="_blank" rel="noopener noreferrer"
+              className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition hover:opacity-70 inline-flex items-center gap-2"
+              style={{ borderColor: c.border, color: c.muted }}>
+              💬 Comunidad WhatsApp
+            </a>
+          </div>
+          <p className="text-xs pt-2" style={{ color: c.muted }}>
+            Creado por <a href="https://x.com/carldlfr" target="_blank" rel="noopener noreferrer" className="font-medium hover:opacity-70 transition" style={{ color: c.accent }}>@carldlfr</a>
           </p>
         </footer>
       </div>
