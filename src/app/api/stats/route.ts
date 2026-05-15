@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getTodayStats, getLeaderboard } from '@/lib/db'
+import { getTodayStats, getLeaderboard, getPartyLeaderboard } from '@/lib/db'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import type { NextRequest } from 'next/server'
 
@@ -13,8 +13,9 @@ export async function GET(req: NextRequest) {
   try {
     const stats = getTodayStats()
     const leaderboard = getLeaderboard()
-    return NextResponse.json({ stats, leaderboard })
+    const parties = getPartyLeaderboard()
+    return NextResponse.json({ stats, leaderboard, parties })
   } catch {
-    return NextResponse.json({ stats: { analysesToday: 0 }, leaderboard: [] })
+    return NextResponse.json({ stats: { analysesToday: 0 }, leaderboard: [], parties: [] })
   }
 }

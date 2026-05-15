@@ -74,8 +74,9 @@ export default function Home() {
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
   const [copied, setCopied] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
-  const [stats, setStats] = useState<{ analysesToday: number; leaderboard: any[] }>({ analysesToday: 0, leaderboard: [] })
+  const [stats, setStats] = useState<{ analysesToday: number; leaderboard: any[]; parties: any[] }>({ analysesToday: 0, leaderboard: [], parties: [] })
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [selectedParty, setSelectedParty] = useState<string | null>(null)
 
   const c = dark ? DARK : LIGHT
   const isUrl = input.trim().match(/^https?:\/\//i)
@@ -224,24 +225,97 @@ export default function Home() {
         {/* Leaderboard */}
         {showLeaderboard && (
           <div className="mt-6 rounded-xl border-2 p-4 sm:p-6" style={{ borderColor: c.border }}>
-            <h2 className="text-lg font-bold mb-4">📊 Ranking de políticos analizados</h2>
-            {stats.leaderboard?.length === 0 ? (
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">
+                {selectedParty ? `📊 ${selectedParty}` : '📊 Ranking de partidos'}
+              </h2>
+              {selectedParty && (
+                <button onClick={() => setSelectedParty(null)} className="text-sm font-medium px-3 py-1 rounded-lg border-2 transition" style={{ borderColor: c.border, color: c.muted }}>
+                  ← Ver todos
+                </button>
+              )}
+            </div>
+
+            {!selectedParty && stats.parties?.length === 0 && stats.leaderboard?.length === 0 && (
               <p className="py-8 text-center" style={{ color: c.muted }}>Todavía no hay datos. ¡Empieza a analizar discursos!</p>
-            ) : (
+            )}
+
+            {!selectedParty && stats.parties?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: c.muted }}>Partidos políticos</p>
+                <div className="space-y-2 mb-6">
+                  {stats.parties.map((p: any, i: number) => (
+                    <button key={i} onClick={() => setSelectedParty(p.party)}
+                      className="w-full text-left rounded-xl border-2 p-4 transition hover:opacity-80"
+                      style={{ borderColor: c.border }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}</span>
+                          <div>
+                            <p className="font-bold text-base">{p.party}</p>
+                            <p className="text-xs" style={{ color: c.muted }}>{p.politicians_count} políticos · {p.total_checks} análisis</p>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-base font-black" style={{
+                          background: p.avg_honesty >= 7 ? c.greenBg : p.avg_honesty >= 4 ? c.yellowBg : c.redBg,
+                          color: p.avg_honesty >= 7 ? c.green : p.avg_honesty >= 4 ? c.yellow : c.red,
+                        }}>
+                          {p.avg_honesty}<span className="text-xs" style={{ color: c.muted }}>/10</span>
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Politicians within selected party */}
+            {selectedParty && (
+              <div className="space-y-2">
+                {stats.parties
+                  .find((p: any) => p.party === selectedParty)
+                  ?.politicians?.map((pol: any, i: number) => (
+                    <div key={i} className="rounded-xl border-2 p-4" style={{ borderColor: c.border }}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-base font-bold">{pol.politician}</span>
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-base font-black shrink-0 ml-3" style={{
+                          background: pol.avg_honesty >= 7 ? c.greenBg : pol.avg_honesty >= 4 ? c.yellowBg : c.redBg,
+                          color: pol.avg_honesty >= 7 ? c.green : pol.avg_honesty >= 4 ? c.yellow : c.red,
+                        }}>
+                          {pol.avg_honesty}<span className="text-xs" style={{ color: c.muted }}>/10</span>
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm" style={{ color: c.subtext }}>
+                        {pol.total_checks} análisis · Última: {pol.latest_translation ? `"${pol.latest_translation}"` : '—'}
+                      </p>
+                    </div>
+                  ))}
+                {(!stats.parties.find((p: any) => p.party === selectedParty)?.politicians?.length) && (
+                  <p className="py-8 text-center" style={{ color: c.muted }}>No hay políticos identificados en este partido todavía.</p>
+                )}
+              </div>
+            )}
+
+            {/* Full individual leaderboard as fallback */}
+            {!selectedParty && (!stats.parties?.length) && stats.leaderboard?.length > 0 && (
               <div style={{ overflowX: 'auto' }}>
+                <p className="text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: c.muted }}>Políticos individuales</p>
                 <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
                   <thead>
                     <tr className="border-b-2" style={{ borderColor: c.border }}>
                       <th className="py-3 pr-4 text-sm font-semibold" style={{ color: c.muted }}>Político</th>
-                      <th className="py-3 pr-4 text-sm font-semibold text-center" style={{ color: c.muted }}>Veces analizado</th>
-                      <th className="py-3 pr-4 text-sm font-semibold text-center" style={{ color: c.muted }}>Honestidad media</th>
+                      <th className="py-3 pr-4 text-sm font-semibold text-center" style={{ color: c.muted }}>Análisis</th>
+                      <th className="py-3 pr-4 text-sm font-semibold text-center" style={{ color: c.muted }}>Honestidad</th>
                       <th className="py-3 text-sm font-semibold" style={{ color: c.muted }}>Última traducción</th>
                     </tr>
                   </thead>
                   <tbody>
                     {stats.leaderboard?.map((p: any, i: number) => (
                       <tr key={i} className="border-b" style={{ borderColor: c.borderLight }}>
-                        <td className="py-4 pr-4 font-semibold">{p.politician}</td>
+                        <td className="py-4 pr-4 font-semibold">{p.politician}{p.party ? <span className="text-xs ml-2" style={{ color: c.muted }}>({p.party})</span> : null}</td>
                         <td className="py-4 pr-4 text-center text-lg font-bold">{p.total_checks}</td>
                         <td className="py-4 pr-4 text-center">
                           <span className="inline-block px-3 py-1 rounded-full text-lg font-black" style={{

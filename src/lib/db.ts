@@ -45,13 +45,13 @@ export function getDb(): Database.Database {
   return db
 }
 
-export function saveAnalysis(url: string, sourceText: string, analysisJson: string, sourceType = 'url', rawContent = '') {
+export function saveAnalysis(url: string, sourceText: string, analysisJson: string, sourceType = 'url', rawContent = '', politician = '', party = '') {
   const db = getDb()
   const stmt = db.prepare(`
-    INSERT INTO analyses (url, source_type, source_text, raw_content, analysis_json)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO analyses (url, source_type, source_text, raw_content, analysis_json, politician, party)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `)
-  return stmt.run(url, sourceType, sourceText, rawContent, analysisJson).lastInsertRowid
+  return stmt.run(url, sourceType, sourceText, rawContent, analysisJson, politician, party).lastInsertRowid
 }
 
 export function recordEvent(analysisId: number | null, eventType: string, eventData = '') {
@@ -130,16 +130,53 @@ export function getLeaderboard(): any[] {
   return db.prepare(`
     SELECT
       politician,
+      party,
       COUNT(*) as total_checks,
       ROUND(AVG(CAST(json_extract(analysis_json, '$.nivel_honestidad') AS REAL)), 1) as avg_honesty,
       MAX(created_at) as last_seen,
       json_extract(analysis_json, '$.traduccion_llana') as latest_translation
     FROM analyses
-    WHERE politician != '' AND politician != 'Desconocido'
+    WHERE politician != '' AND politician != 'Desconocido' AND politician IS NOT NULL
     GROUP BY politician
     ORDER BY total_checks DESC
-    LIMIT 20
+    LIMIT 50
   `).all()
+}
+
+export function getPartyLeaderboard(): any[] {
+  const db = getDb()
+  // Group by party
+  const parties = db.prepare(`
+    SELECT
+      party,
+      COUNT(*) as total_checks,
+      COUNT(DISTINCT politician) as politicians_count,
+      ROUND(AVG(CAST(json_extract(analysis_json, '$.nivel_honestidad') AS REAL)), 1) as avg_honesty,
+      MAX(created_at) as last_seen
+    FROM analyses
+    WHERE party != '' AND party IS NOT NULL
+    GROUP BY party
+    ORDER BY total_checks DESC
+    LIMIT 20
+  `).all() as any[]
+
+  // For each party, get its politicians
+  for (const p of parties) {
+    p.politicians = db.prepare(`
+      SELECT
+        politician,
+        COUNT(*) as total_checks,
+        ROUND(AVG(CAST(json_extract(analysis_json, '$.nivel_honestidad') AS REAL)), 1) as avg_honesty,
+        MAX(created_at) as last_seen,
+        json_extract(analysis_json, '$.traduccion_llana') as latest_translation
+      FROM analyses
+      WHERE party = ? AND politician != '' AND politician != 'Desconocido' AND politician IS NOT NULL
+      GROUP BY politician
+      ORDER BY total_checks DESC
+    `).all(p.party)
+  }
+
+  return parties
 }
 
 export function getAnalysisById(id: number): Record<string, any> | null {

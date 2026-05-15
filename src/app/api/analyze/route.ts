@@ -94,7 +94,9 @@ export async function POST(req: NextRequest) {
         analysis.resumen || '',
         JSON.stringify(analysis),
         sourceType,
-        sourceText.slice(0, 5000)
+        sourceText.slice(0, 5000),
+        politician,
+        party
       ) as number
     } catch {
       // DB unavailable — analysis still delivered

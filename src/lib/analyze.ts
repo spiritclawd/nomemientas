@@ -29,7 +29,9 @@ JSON DE SALIDA (estructura exacta, sin texto fuera):
   "vago_vs_concreto": {"vago": ["frases vacías"], "concreto": ["compromisos verificables"]},
   "que_se_deja_fuera": "lo relevante que no dijo",
   "traduccion_llana": "explicación para tu abuela en una frase",
-  "nivel_honestidad": 0-10
+  "nivel_honestidad": 0-10,
+  "politico": "Nombre del político si se identifica, o null",
+  "partido": "Nombre del partido político si se identifica, o null"
 }`
 
 export async function analyzeText(text: string): Promise<{
@@ -119,9 +121,15 @@ export async function analyzeText(text: string): Promise<{
 
   let politician = 'Desconocido'
   let party = ''
-  if (parsed.resumen) {
+  if (parsed.politico && typeof parsed.politico === 'string' && parsed.politico !== 'null') {
+    politician = parsed.politico
+  } else if (parsed.resumen) {
+    // Fallback: try to extract from resumen text
     const nameMatch = parsed.resumen.match(/([A-Z][a-záéíóú]{3,}\s[A-ZÁÉÍÓÚ][a-záéíóú]{2,})/)
     if (nameMatch) politician = nameMatch[1]
+  }
+  if (parsed.partido && typeof parsed.partido === 'string' && parsed.partido !== 'null') {
+    party = parsed.partido
   }
 
   return { analysis: parsed, politician, party }
