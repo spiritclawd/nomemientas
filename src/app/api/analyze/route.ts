@@ -21,7 +21,7 @@ async function tryTunnelProxy(body: any, signal: AbortSignal): Promise<Response 
       body: JSON.stringify(body),
       signal,
     })
-    if (res.ok || res.status === 400) return res // pass through client errors too
+    if (res.ok || res.status === 400 || res.status >= 500) return res // pass through client + server errors
     return null
   } catch {
     return null
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const isUrl = !!(url && typeof url === 'string')
 
     // Try tunnel proxy first (Vercel only)
-    const tunnelRes = await tryTunnelProxy(body, AbortSignal.timeout(25000))
+    const tunnelRes = await tryTunnelProxy(body, AbortSignal.timeout(55000))
     if (tunnelRes) {
       const data = await tunnelRes.json()
       return NextResponse.json(data, { status: tunnelRes.status })

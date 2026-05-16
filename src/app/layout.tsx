@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'nomemientas — ¿Qué te están diciendo realmente?',
+  title: 'nomemientas — ¿Qué dicen realmente los políticos?',
   description: 'Analiza discursos políticos al instante. Quita la retórica y descubre lo que realmente significan las palabras. Agnostico, sin partidismo. YouTube, Twitter, artículos y texto libre.',
   openGraph: {
     title: 'nomemientas — Analizador de discursos políticos',

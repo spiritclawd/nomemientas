@@ -339,7 +339,7 @@ export default function Home() {
         {!result && !loading && !showLeaderboard && (
           <div className="py-12 sm:py-20 text-center">
             <h1 className="text-3xl sm:text-4xl font-bold mb-4 leading-tight">
-              ¿Que dicen cuando hablan?
+              ¿Qué dicen realmente los políticos?
             </h1>
             <p className="text-base sm:text-lg max-w-lg mx-auto mb-10 leading-relaxed" style={{ color: c.subtext }}>
               Cuando la dialéctica se usa en contra del pueblo, hacen falta traductores. Analiza a tu político favorito y compártelo en redes. ¡Que no les salga gratis!
@@ -644,7 +644,7 @@ export default function Home() {
               style={{ borderColor: c.border, color: c.muted }}>
                Compartir feedback
             </a>
-            <a href="https://whatsapp.com/channel/..." target="_blank" rel="noopener noreferrer"
+            <a href="https://chat.whatsapp.com/KZhTom1xPbbDkREPqas5OW" target="_blank" rel="noopener noreferrer"
               className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition hover:opacity-70 inline-flex items-center gap-2"
               style={{ borderColor: c.border, color: c.muted }}>
               💬 Comunidad WhatsApp
