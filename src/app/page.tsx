@@ -195,9 +195,11 @@ export default function Home() {
         {/* Header */}
         <header className="flex items-center justify-between py-4 sm:py-6 border-b-2" style={{ borderColor: c.border }}>
           <div className="flex items-center gap-2">
-            <span className="text-2xl">🗣️</span>
+            <svg className="nm-bubble" width="32" height="32" viewBox="0 0 100 100" fill="none">
+              <path d="M20 35 C20 25 30 18 50 18 C70 18 80 25 80 35 C80 45 70 52 55 53 L55 68 L40 55 C28 53 20 45 20 35Z" stroke={c.accent} strokeWidth="4" fill="none"/>
+            </svg>
             <span className="font-bold text-xl sm:text-2xl tracking-tight">
-              no<span style={{ color: c.accent }}>me</span>mientas
+              no<span className="nm-logo-accent" style={{ color: c.accent }}>me</span>mientas
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -338,6 +340,17 @@ export default function Home() {
         {/* Main hero */}
         {!result && !loading && !showLeaderboard && (
           <div className="py-12 sm:py-20 text-center">
+            <div className="flex items-center justify-center gap-3 mb-5">
+              <svg className="nm-bubble" width="44" height="44" viewBox="0 0 100 100" fill="none">
+                <path d="M20 35 C20 25 30 18 50 18 C70 18 80 25 80 35 C80 45 70 52 55 53 L55 68 L40 55 C28 53 20 45 20 35Z" stroke={c.accent} strokeWidth="3.5" fill="none"/>
+                <circle cx="40" cy="33" r="3" fill={c.accent} className="nm-logo-accent"/>
+                <circle cx="50" cy="33" r="3" fill={c.accent} className="nm-logo-accent" style={{ animationDelay: '0.5s' }}/>
+                <circle cx="60" cy="33" r="3" fill={c.accent} className="nm-logo-accent" style={{ animationDelay: '1s' }}/>
+              </svg>
+              <span className="text-2xl sm:text-3xl font-black tracking-tight">
+                no<span className="nm-logo-accent" style={{ color: c.accent }}>me</span>mientas
+              </span>
+            </div>
             <h1 className="text-3xl sm:text-4xl font-bold mb-4 leading-tight">
               ¿Qué dicen realmente los políticos?
             </h1>
@@ -588,7 +601,9 @@ export default function Home() {
                   <div className="p-6">
                     {/* Brand */}
                     <div className="flex items-center gap-2 mb-5">
-                      <span className="text-2xl">🗣️</span>
+                      <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
+                        <path d="M20 35 C20 25 30 18 50 18 C70 18 80 25 80 35 C80 45 70 52 55 53 L55 68 L40 55 C28 53 20 45 20 35Z" stroke={dark ? '#ff4444' : '#d63031'} strokeWidth="4" fill="none"/>
+                      </svg>
                       <span className="font-bold text-lg tracking-tight">no<span style={{ color: '#ff4444' }}>me</span>mientas</span>
                     </div>
 

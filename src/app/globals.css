@@ -4,3 +4,23 @@ body {
   background: #0a0a0c;
   color: #fff;
 }
+
+/* Logo accent pulse */
+@keyframes accent-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+.nm-logo-accent {
+  animation: accent-pulse 3s ease-in-out infinite;
+}
+
+/* Speech bubble subtle float */
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.nm-bubble {
+  animation: float-slow 4s ease-in-out infinite;
+}
