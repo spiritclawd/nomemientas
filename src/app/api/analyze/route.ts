@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { extractFromUrl, validateUrl } from '@/lib/extract'
 import { analyzeText } from '@/lib/analyze'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { hashInput, getCachedAnalysis, setCachedAnalysis } from '@/lib/db'
+import { hashInput, getCachedAnalysis, setCachedAnalysis, getTodayAnalysisCount } from '@/lib/db'
 
 function sanitizeInput(text: string): string {
   let clean = text.replace(/<[^>]*>/g, '')
@@ -39,9 +39,20 @@ export async function POST(req: NextRequest) {
 
   const rl = checkRateLimit(ip, { maxRequests: 5, windowMs: 60_000 })
   if (!rl.allowed) {
+    const waitMin = Math.ceil(rl.resetIn / 60000)
     return NextResponse.json(
-      { error: 'Demasiadas peticiones. Espera un momento.', retryAfter: Math.ceil(rl.resetIn / 1000) },
+      { error: `Has usado la herramienta muy rápido. Espera ${waitMin} minuto${waitMin > 1 ? 's' : ''} y vuelve a intentarlo.`, retryAfter: Math.ceil(rl.resetIn / 1000), rateLimited: true },
       { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.resetIn / 1000)) } }
+    )
+  }
+
+  // Daily limit check (persisted in SQLite)
+  const DAILY_LIMIT = 100
+  const todayCount = getTodayAnalysisCount()
+  if (todayCount >= DAILY_LIMIT) {
+    return NextResponse.json(
+      { error: 'Hoy ya se han hecho muchos análisis y hemos llegado a nuestro límite gratuito. ¡Vuelve mañana y podrás seguir usando nomemientas! 🗣️', dailyLimit: true },
+      { status: 429 }
     )
   }
 

@@ -78,6 +78,16 @@ export function recordEvent(analysisId: number | null, eventType: string, eventD
   }
 }
 
+export function getTodayAnalysisCount(): number {
+  try {
+    const db = getDb()
+    const today = new Date().toISOString().slice(0, 10)
+    return (db.prepare('SELECT COUNT(*) as total FROM analyses WHERE created_at >= ?').get(today) as Record<string, number>).total
+  } catch {
+    return 0
+  }
+}
+
 export function getTodayStats() {
   const db = getDb()
   const today = new Date().toISOString().slice(0, 10)
