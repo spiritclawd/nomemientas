@@ -1,0 +1,30 @@
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:8085
+   - Network:      http://192.168.1.89:8085
+
+ ✓ Starting...
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /home/carlos/package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * /home/carlos/nomemientas/package-lock.json
+
+ ✓ Ready in 484ms
+(node:838975) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[EXTRACT DEBUG] text length: 2089 title length: 27 type: youtube
+[LLM RAW RESPONSE] {
+  "resumen": "El texto proporcionado no es un discurso político, sino la letra completa de la canción 'Never Gonna Give You Up' de Rick Astley (conocida como 'Rickroll'). No contiene declaraciones de ningún político, ni propuestas, ni datos, ni promesas de gobierno. Es un meme de internet sin contenido político verificable.",
+  "afirmaciones_clave": [
+    {
+      "texto": "Never gonna give you up / Never gonna let you down",
+      "tipo": "promesa",
+      "verificable": false,
+      "explicaci
+[EXTRACT DEBUG] text length: 0 title length: 0 type: twitter
+[EXTRACT DEBUG] text length: 573 title length: 27 type: youtube
+[LLM RAW RESPONSE] {
+  "resumen": "El político afirma que el gobierno actual está en dificultades porque la derecha lo persigue políticamente y no actúa contra la corrupción ni contra lo que llama 'guerra sucia judicial'. Además, critica que se use dinero destinado a vivienda para comprar armas y tanques bajo presión de Donald Trump, sin aportar datos, fechas ni propuestas concretas para sustentar estas acusaciones.",
+  "afirmaciones_clave": [
+    {"texto": "la derecha le tiene muchas ganas a Zapatero", "tipo": "o

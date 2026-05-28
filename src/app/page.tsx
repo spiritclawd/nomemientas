@@ -2,6 +2,13 @@
 
 import { useState, useEffect } from 'react'
 
+function politicianSlug(name: string): string {
+  return name.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 const LIGHT = {
   page: '#f5f1eb',
   pageText: '#1a1a2e',
@@ -74,9 +81,26 @@ export default function Home() {
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
   const [copied, setCopied] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
-  const [stats, setStats] = useState<{ analysesToday: number; leaderboard: any[]; parties: any[] }>({ analysesToday: 0, leaderboard: [], parties: [] })
+  const [stats, setStats] = useState<{
+    analysesToday: number; leaderboard: any[]; parties: any[];
+    enhanced_global_stats?: { total_seeded_politicians: number; total_parties: number; total_promises: number; promise_summary: any };
+    enhanced_leaderboard?: any[]; all_parties?: any[];
+  }>({ analysesToday: 0, leaderboard: [], parties: [] })
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [selectedParty, setSelectedParty] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showPartyComparison, setShowPartyComparison] = useState(false)
+  const [partyComparison, setPartyComparison] = useState<any[]>([])
+
+  // Fetch party comparison data
+  useEffect(() => {
+    if (showPartyComparison && partyComparison.length === 0) {
+      fetch('/api/party-comparison')
+        .then(r => r.json())
+        .then(d => { if (d.parties) setPartyComparison(d.parties) })
+        .catch(() => {})
+    }
+  }, [showPartyComparison, partyComparison.length])
 
   const c = dark ? DARK : LIGHT
   const isUrl = input.trim().match(/^https?:\/\//i)
@@ -204,7 +228,8 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm hidden sm:block" style={{ color: c.muted }}>
-              {stats.analysesToday} análisis hoy
+              {stats.analysesToday} analisis hoy
+              {stats.enhanced_global_stats && ` · ${stats.enhanced_global_stats.total_seeded_politicians} politicos`}
             </span>
             <button
               onClick={toggleDark}
@@ -215,7 +240,14 @@ export default function Home() {
               {dark ? '☀️' : '🌙'}
             </button>
             <button
-              onClick={() => setShowLeaderboard(!showLeaderboard)}
+              onClick={() => { setShowPartyComparison(!showPartyComparison); setShowLeaderboard(false) }}
+              className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition"
+              style={{ borderColor: showPartyComparison ? c.accent : c.border, color: showPartyComparison ? c.accent : c.muted }}
+            >
+              📊 Comparar
+            </button>
+            <button
+              onClick={() => { setShowLeaderboard(!showLeaderboard); setShowPartyComparison(false) }}
               className="text-sm font-medium px-4 py-2 rounded-lg border-2 transition"
               style={{ borderColor: c.border, color: c.muted }}
             >
@@ -223,6 +255,65 @@ export default function Home() {
             </button>
           </div>
         </header>
+
+        {/* Party Comparison */}
+        {showPartyComparison && (
+          <div className="mt-6 rounded-xl border-2 p-4 sm:p-6" style={{ borderColor: c.border }}>
+            <h2 className="text-lg font-bold mb-4">📊 Comparativa de partidos</h2>
+            
+            {partyComparison.length === 0 ? (
+              <p className="py-8 text-center" style={{ color: c.muted }}>Cargando datos...</p>
+            ) : (
+              <div className="space-y-3">
+                {partyComparison.map((p: any, i: number) => (
+                  <div key={p.slug} className="rounded-xl border-2 p-4" style={{ borderColor: c.border }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 rounded-full" style={{ background: p.color }} />
+                        <div>
+                          <a href={`/partido/${p.slug}`} className="font-bold" style={{ color: c.pageText, textDecoration: 'none' }}
+                            onMouseEnter={e => e.currentTarget.style.color = c.accent}
+                            onMouseLeave={e => e.currentTarget.style.color = c.pageText}>
+                            {p.short_name}
+                          </a>
+                          <span className="text-xs ml-2" style={{ color: c.muted }}>
+                            {p.member_count} miembros · {p.ideology}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="inline-block px-3 py-1 rounded-full text-base font-black" style={{
+                          background: (p.avg_score || 0) >= 6 ? c.greenBg : (p.avg_score || 0) >= 4 ? c.yellowBg : c.redBg,
+                          color: (p.avg_score || 0) >= 6 ? c.green : (p.avg_score || 0) >= 4 ? c.yellow : c.red,
+                        }}>
+                          {p.avg_score?.toFixed(1) || '?'}<span className="text-xs" style={{ color: c.muted }}>/10</span>
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Score distribution bar */}
+                    <div className="flex gap-1 mt-2" style={{ height: 6, borderRadius: 3, overflow: 'hidden' }}>
+                      {p.score_distribution.high > 0 && (
+                        <div style={{ width: `${(p.score_distribution.high / p.member_count) * 100}%`, background: c.green }} />
+                      )}
+                      {p.score_distribution.mid > 0 && (
+                        <div style={{ width: `${(p.score_distribution.mid / p.member_count) * 100}%`, background: c.yellow }} />
+                      )}
+                      {p.score_distribution.low > 0 && (
+                        <div style={{ width: `${(p.score_distribution.low / p.member_count) * 100}%`, background: c.red }} />
+                      )}
+                    </div>
+                    <div className="flex justify-between mt-1 text-xs" style={{ color: c.muted }}>
+                      <span>{p.score_distribution.high} alto</span>
+                      <span>{p.score_distribution.mid} medio</span>
+                      <span>{p.score_distribution.low} bajo</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Leaderboard */}
         {showLeaderboard && (
@@ -238,9 +329,75 @@ export default function Home() {
               )}
             </div>
 
-            {!selectedParty && stats.parties?.length === 0 && stats.leaderboard?.length === 0 && (
-              <p className="py-8 text-center" style={{ color: c.muted }}>Todavía no hay datos. ¡Empieza a analizar discursos!</p>
+            {!selectedParty && stats.parties?.length === 0 && stats.leaderboard?.length === 0 && !stats.enhanced_leaderboard?.length && (
+              <p className="py-8 text-center" style={{ color: c.muted }}>Todavia no hay datos. !Empieza a analizar discursos!</p>
             )}
+
+            {/* Enhanced leaderboard (seed data) */}
+            {!selectedParty && stats.enhanced_leaderboard && (stats.enhanced_leaderboard as any[]).length > 0 && (() => {
+              const el = stats.enhanced_leaderboard!
+              const filtered = searchQuery 
+                ? el.filter((p: any) => 
+                    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (p.party && p.party.toLowerCase().includes(searchQuery.toLowerCase()))
+                  )
+                : el
+              return (
+              <div style={{ overflowX: 'auto' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: c.muted }}>
+                    Politicos ({filtered.length}{searchQuery ? ` de ${el.length}` : ''})
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Buscar..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="text-xs px-3 py-1 rounded-lg border-2"
+                    style={{ 
+                      borderColor: searchQuery ? c.accent : c.border,
+                      background: c.inputBg,
+                      color: c.inputText,
+                      width: 120
+                    }}
+                  />
+                </div>
+                <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr className="border-b-2" style={{ borderColor: c.border }}>
+                      <th className="py-3 pr-4 text-sm font-semibold" style={{ color: c.muted }}>#</th>
+                      <th className="py-3 pr-4 text-sm font-semibold" style={{ color: c.muted }}>Politico</th>
+                      <th className="py-3 pr-4 text-sm font-semibold text-center" style={{ color: c.muted }}>Score</th>
+                      <th className="py-3 text-sm font-semibold" style={{ color: c.muted }}>Partido</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((p: any, i: number) => (
+                      <tr key={i} className="border-b" style={{ borderColor: c.borderLight }}>
+                        <td className="py-3 pr-4 text-lg font-bold" style={{ color: c.muted }}>{i + 1}</td>
+                        <td className="py-3 pr-4 font-semibold">
+                          <a href={`/politico/${p.slug}`} style={{ color: c.pageText, textDecoration: 'none' }}
+                            onMouseEnter={e => e.currentTarget.style.color = c.accent}
+                            onMouseLeave={e => e.currentTarget.style.color = c.pageText}>
+                            {p.name}
+                          </a>
+                        </td>
+                        <td className="py-3 pr-4 text-center">
+                          <span className="inline-block px-3 py-1 rounded-full text-base font-black" style={{
+                            background: (p.composite_score || 5) >= 6 ? c.greenBg : (p.composite_score || 5) >= 4 ? c.yellowBg : c.redBg,
+                            color: (p.composite_score || 5) >= 6 ? c.green : (p.composite_score || 5) >= 4 ? c.yellow : c.red,
+                          }}>{p.composite_score?.toFixed(1) ?? '?'}<span className="text-xs" style={{ color: c.muted }}>/10</span></span>
+                        </td>
+                        <td className="py-3 text-sm" style={{ color: c.subtext }}>
+                          {p.party ? <span style={{ background: c.tabBg, padding: '2px 8px', borderRadius: 4, fontSize: '0.7rem', fontWeight: 600, color: c.subtext }}>{p.party}</span> : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              )
+            })()}
 
             {!selectedParty && stats.parties?.length > 0 && (
               <div>
@@ -281,7 +438,9 @@ export default function Home() {
                     <div key={i} className="rounded-xl border-2 p-4" style={{ borderColor: c.border }}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
-                          <span className="text-base font-bold">{pol.politician}</span>
+                          <span className="text-base font-bold"><a href={`/politico/${politicianSlug(pol.politician)}`} style={{ color: c.pageText, textDecoration: 'none' }}
+                            onMouseEnter={e => e.currentTarget.style.color = c.accent}
+                            onMouseLeave={e => e.currentTarget.style.color = c.pageText}>{pol.politician}</a></span>
                         </div>
                         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-base font-black shrink-0 ml-3" style={{
                           background: pol.avg_honesty >= 7 ? c.greenBg : pol.avg_honesty >= 4 ? c.yellowBg : c.redBg,
@@ -317,7 +476,14 @@ export default function Home() {
                   <tbody>
                     {stats.leaderboard?.map((p: any, i: number) => (
                       <tr key={i} className="border-b" style={{ borderColor: c.borderLight }}>
-                        <td className="py-4 pr-4 font-semibold">{p.politician}{p.party ? <span className="text-xs ml-2" style={{ color: c.muted }}>({p.party})</span> : null}</td>
+                        <td className="py-4 pr-4 font-semibold">
+                          <a href={`/politico/${politicianSlug(p.politician)}`} style={{ color: c.pageText, textDecoration: 'none' }}
+                            onMouseEnter={e => e.currentTarget.style.color = c.accent}
+                            onMouseLeave={e => e.currentTarget.style.color = c.pageText}>
+                            {p.politician}
+                          </a>
+                          {p.party ? <span className="text-xs ml-2" style={{ color: c.muted }}>({p.party})</span> : null}
+                        </td>
                         <td className="py-4 pr-4 text-center text-lg font-bold">{p.total_checks}</td>
                         <td className="py-4 pr-4 text-center">
                           <span className="inline-block px-3 py-1 rounded-full text-lg font-black" style={{
@@ -355,7 +521,7 @@ export default function Home() {
               ¿Qué dicen realmente los políticos?
             </h1>
             <p className="text-base sm:text-lg max-w-lg mx-auto mb-10 leading-relaxed" style={{ color: c.subtext }}>
-              Cuando la dialéctica se usa en contra del pueblo, hacen falta traductores. Analiza a tu político favorito y compártelo en redes. ¡Que no les salga gratis!
+              Analiza a tu político favorito y compártelo en redes. ¡Que no les salga gratis!
             </p>
           </div>
         )}
@@ -588,50 +754,66 @@ export default function Home() {
               <div className="p-6 flex justify-center bg-gray-100">
                 <div
                   id="share-card"
-                  className="rounded-xl overflow-hidden w-full max-w-sm"
+                  className="rounded-xl overflow-hidden w-full max-w-xs"
                   style={{
-                    background: dark ? 'linear-gradient(135deg, #1a1a2e 0%, #0f0f11 100%)' : 'linear-gradient(135deg, #f5f1eb 0%, #e8e0d4 100%)',
+                    background: dark ? '#0f0f11' : '#ffffff',
                     color: dark ? '#fff' : '#1a1a2e',
                     fontFamily: 'system-ui, -apple-system, sans-serif',
+                    aspectRatio: '1 / 1',
+                    position: 'relative',
                   }}
                 >
                   {/* Top accent bar */}
-                  <div style={{ height: '4px', background: result.analysis?.nivel_honestidad >= 7 ? '#4ade80' : result.analysis?.nivel_honestidad >= 4 ? '#facc15' : '#f87171' }} />
+                  <div style={{ height: '6px', background: result.analysis?.nivel_honestidad >= 7 ? '#4ade80' : result.analysis?.nivel_honestidad >= 4 ? '#facc15' : '#f87171' }} />
                   
-                  <div className="p-6">
+                  <div className="p-5 flex flex-col h-full">
                     {/* Brand */}
-                    <div className="flex items-center gap-2 mb-5">
-                      <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
-                        <path d="M20 35 C20 25 30 18 50 18 C70 18 80 25 80 35 C80 45 70 52 55 53 L55 68 L40 55 C28 53 20 45 20 35Z" stroke={dark ? '#ff4444' : '#d63031'} strokeWidth="4" fill="none"/>
-                      </svg>
-                      <span className="font-bold text-lg tracking-tight">no<span style={{ color: '#ff4444' }}>me</span>mientas</span>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <svg width="24" height="24" viewBox="0 0 100 100" fill="none">
+                          <path d="M20 35 C20 25 30 18 50 18 C70 18 80 25 80 35 C80 45 70 52 55 53 L55 68 L40 55 C28 53 20 45 20 35Z" stroke={dark ? '#ff4444' : '#d63031'} strokeWidth="4" fill="none"/>
+                        </svg>
+                        <span className="font-bold text-base tracking-tight">no<span style={{ color: '#ff4444' }}>me</span>mientas</span>
+                      </div>
+                      {result.analysis?.party && (
+                        <span className="px-2 py-1 rounded text-xs font-bold" style={{ 
+                          background: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                          color: dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'
+                        }}>
+                          {result.analysis.party}
+                        </span>
+                      )}
                     </div>
 
                     {/* Politician name */}
                     {result.analysis?.politician && (
-                      <p className="text-lg font-bold mb-3" style={{ color: dark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)' }}>
+                      <p className="text-2xl font-black mb-4 text-center" style={{ color: dark ? '#fff' : '#1a1a2e' }}>
                         {result.analysis.politician}
                       </p>
                     )}
 
                     {/* Score */}
                     <div className="text-center mb-4">
-                      <p className="text-5xl font-black mb-1" style={{ color:
+                      <p className="text-7xl font-black mb-1" style={{ color:
                         result.analysis?.nivel_honestidad >= 7 ? '#4ade80' :
                         result.analysis?.nivel_honestidad >= 4 ? '#facc15' : '#f87171'
                       }}>
-                        {result.analysis?.nivel_honestidad}<span className="text-lg font-normal" style={{ color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)' }}>/10</span>
+                        {result.analysis?.nivel_honestidad}
                       </p>
-                      <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>Honestidad</p>
+                      <p className="text-sm uppercase tracking-widest font-bold" style={{ color: dark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>
+                        Honestidad
+                      </p>
                     </div>
 
                     {/* Quote */}
-                    <blockquote className="text-center text-sm italic leading-relaxed px-2" style={{ color: dark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.65)' }}>
-                      “{result.analysis?.traduccion_llana}”
-                    </blockquote>
+                    <div className="flex-1 flex items-center justify-center">
+                      <blockquote className="text-center text-sm italic leading-relaxed px-2" style={{ color: dark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.65)' }}>
+                        "{result.analysis?.traduccion_llana}"
+                      </blockquote>
+                    </div>
 
                     {/* Divider */}
-                    <div className="mt-6 mb-3 border-t" style={{ borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }} />
+                    <div className="mt-4 mb-2 border-t" style={{ borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }} />
 
                     {/* Footer */}
                     <p className="text-center text-xs font-medium" style={{ color: dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)' }}>
@@ -640,7 +822,15 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              <div className="p-4 border-t flex justify-end" style={{ borderColor: c.border }}>
+              <div className="p-4 border-t flex flex-wrap gap-2 justify-end" style={{ borderColor: c.border }}>
+                <button onClick={() => {
+                  const text = `${result.analysis?.politician || 'Político'} — Honestidad: ${result.analysis?.nivel_honestidad}/10\n\n"${result.analysis?.traduccion_llana}"\n\nAnalizado en nomemientas.org`;
+                  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+                  window.open(url, '_blank');
+                  track(result?.id, 'share_whatsapp');
+                }} className="font-bold px-4 py-2 rounded-lg text-white" style={{ background: '#25D366' }}>
+                  WhatsApp
+                </button>
                 <button onClick={downloadImage} className="font-bold px-6 py-2 rounded-lg text-white" style={{ background: c.accent }}>
                   Descargar PNG
                 </button>

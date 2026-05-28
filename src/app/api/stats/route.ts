@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getTodayStats, getLeaderboard, getPartyLeaderboard } from '@/lib/db'
+import { getTodayStats, getLeaderboard, getPartyLeaderboard, getEnhancedGlobalStats, getEnhancedLeaderboard, getAllParties } from '@/lib/db'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import type { NextRequest } from 'next/server'
 
@@ -47,7 +47,27 @@ export async function GET(req: NextRequest) {
     const stats = getTodayStats()
     const leaderboard = getLeaderboard()
     const parties = getPartyLeaderboard()
-    return NextResponse.json({ stats, leaderboard, parties })
+    const enhancedGlobalStats = getEnhancedGlobalStats()
+    const enhancedLeaderboard = getEnhancedLeaderboard()
+    const allParties = getAllParties()
+    return NextResponse.json({
+      stats,
+      leaderboard,
+      parties,
+      enhanced_global_stats: {
+        total_seeded_politicians: enhancedGlobalStats.seeded_politicians,
+        total_parties: enhancedGlobalStats.total_parties,
+        total_promises: enhancedGlobalStats.total_promises,
+        promise_summary: enhancedGlobalStats.promise_summary,
+      },
+      enhanced_leaderboard: enhancedLeaderboard,
+      all_parties: allParties.map(p => ({
+        slug: p.slug,
+        short_name: p.short_name,
+        avg_score: p.avg_score,
+        member_count: p.member_count,
+      })),
+    })
   } catch {
     return NextResponse.json({ stats: { analysesToday: 0 }, leaderboard: [], parties: [] })
   }
